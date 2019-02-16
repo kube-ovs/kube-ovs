@@ -1,9 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"github.com/containernetworking/cni/pkg/skel"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 func main() {
-	fmt.Println("Starting kube-ovs-cni")
+	skel.PluginMain(cmdAdd, cmdGet, cmdDel, version.All, "TODO")
 }
