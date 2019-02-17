@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -15,7 +14,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/containernetworking/plugins/pkg/utils"
 	"github.com/digitalocean/go-openvswitch/ovs"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
@@ -27,15 +25,6 @@ type NetConf struct {
 	types.NetConf
 
 	BridgeName string `json:"bridge"`
-
-	// copied from bridge plugin, clean up later
-	IsGW         bool `json:"isGateway`
-	IsDefaultGW  bool `json:"isDefaultGateway"`
-	ForceAddress bool `json:"forceAddress"`
-	IPMasq       bool `json:"ipMasq"`
-	MTU          int  `json:"mtu"`
-	HairpinMode  bool `json:"hairpinMode"`
-	PromiscMode  bool `json:"promiscMode"`
 }
 
 type gwInfo struct {
@@ -103,7 +92,7 @@ func setupVeth(netns ns.NetNS, ifName string) (*current.Interface, *current.Inte
 		contIface.Mac = containerVeth.HardwareAddr.String()
 		contIface.Sandbox = netns.Path()
 		hostIface.Name = hostVeth.Name
-		// hostIface.Sandbox = hostNS.Path() // this doesn't exist in other plugins
+		// hostIface.Sandbox = hostNS.Path() // this doesn't exist in other plugins, should this be removed?
 		return nil
 	})
 	if err != nil {
@@ -129,99 +118,6 @@ func setupVeth(netns ns.NetNS, ifName string) (*current.Interface, *current.Inte
 	// }
 
 	return hostIface, contIface, nil
-}
-
-// calcGateways processes the results from the IPAM plugin and does the
-// following for each IP family:
-//    - Calculates and compiles a list of gateway addresses
-//    - Adds a default route if needed
-func calcGateways(result *current.Result, n *NetConf) (*gwInfo, *gwInfo, error) {
-
-	gwsV4 := &gwInfo{}
-	gwsV6 := &gwInfo{}
-
-	for _, ipc := range result.IPs {
-
-		// Determine if this config is IPv4 or IPv6
-		var gws *gwInfo
-		defaultNet := &net.IPNet{}
-		switch {
-		case ipc.Address.IP.To4() != nil:
-			gws = gwsV4
-			gws.family = netlink.FAMILY_V4
-			defaultNet.IP = net.IPv4zero
-		case len(ipc.Address.IP) == net.IPv6len:
-			gws = gwsV6
-			gws.family = netlink.FAMILY_V6
-			defaultNet.IP = net.IPv6zero
-		default:
-			return nil, nil, fmt.Errorf("Unknown IP object: %v", ipc)
-		}
-		defaultNet.Mask = net.IPMask(defaultNet.IP)
-
-		// All IPs currently refer to the container interface
-		ipc.Interface = current.Int(2)
-
-		// If not provided, calculate the gateway address corresponding
-		// to the selected IP address
-		if ipc.Gateway == nil && n.IsGW {
-			ipc.Gateway = calcGatewayIP(&ipc.Address)
-		}
-
-		// Add a default route for this family using the current
-		// gateway address if necessary.
-		if n.IsDefaultGW && !gws.defaultRouteFound {
-			for _, route := range result.Routes {
-				if route.GW != nil && defaultNet.String() == route.Dst.String() {
-					gws.defaultRouteFound = true
-					break
-				}
-			}
-			if !gws.defaultRouteFound {
-				result.Routes = append(
-					result.Routes,
-					&types.Route{Dst: *defaultNet, GW: ipc.Gateway},
-				)
-				gws.defaultRouteFound = true
-			}
-		}
-
-		// Append this gateway address to the list of gateways
-		if n.IsGW {
-			gw := net.IPNet{
-				IP:   ipc.Gateway,
-				Mask: ipc.Address.Mask,
-			}
-			gws.gws = append(gws.gws, gw)
-		}
-	}
-	return gwsV4, gwsV6, nil
-}
-
-func calcGatewayIP(ipn *net.IPNet) net.IP {
-	nid := ipn.IP.Mask(ipn.Mask)
-	return ip.NextIP(nid)
-}
-
-// disableIPV6DAD disables IPv6 Duplicate Address Detection (DAD)
-// for an interface, if the interface does not support enhanced_dad.
-// We do this because interfaces with hairpin mode will see their own DAD packets
-func disableIPV6DAD(ifName string) error {
-	// ehanced_dad sends a nonce with the DAD packets, so that we can safely
-	// ignore ourselves
-	enh, err := ioutil.ReadFile(fmt.Sprintf("/proc/sys/net/ipv6/conf/%s/enhanced_dad", ifName))
-	if err == nil && string(enh) == "1\n" {
-		return nil
-	}
-	f := fmt.Sprintf("/proc/sys/net/ipv6/conf/%s/accept_dad", ifName)
-	return ioutil.WriteFile(f, []byte("0"), 0644)
-}
-
-func enableIPForward(family int) error {
-	if family == netlink.FAMILY_V4 {
-		return ip.EnableIP4Forward()
-	}
-	return ip.EnableIP6Forward()
 }
 
 func addToSwitch(ovsc *ovs.Client, hostIface string, conIface string, bridge string, contNetnsPath string) error {
@@ -287,29 +183,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return errors.New("IPAM plugin returned missing IP config")
 		}
 
-		// Gather gateway information for each IP family
-		gwsV4, gwsV6, err := calcGateways(result, netConf)
-		if err != nil {
-			return err
-		}
-
 		// Configure the container hardware address and IP address(es)
 		if err := netns.Do(func(_ ns.NetNS) error {
 			contVeth, err := net.InterfaceByName(args.IfName)
 			if err != nil {
 				return err
-			}
-
-			// Disable IPv6 DAD just in case hairpin mode is enabled on the
-			// bridge. Hairpin mode causes echos of neighbor solicitation
-			// packets, which causes DAD failures.
-			for _, ipc := range result.IPs {
-				if ipc.Version == "6" && (netConf.HairpinMode || netConf.PromiscMode) {
-					if err := disableIPV6DAD(args.IfName); err != nil {
-						return err
-					}
-					break
-				}
 			}
 
 			// Add the IP to the interface
@@ -326,40 +204,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return nil
 		}); err != nil {
 			return err
-		}
-
-		if netConf.IsGW {
-			var firstV4Addr net.IP
-			// Set the IP address(es) on the bridge and enable forwarding
-			for _, gws := range []*gwInfo{gwsV4, gwsV6} {
-				for _, gw := range gws.gws {
-					if gw.IP.To4() != nil && firstV4Addr == nil {
-						firstV4Addr = gw.IP
-					}
-
-					// TODO: do we need this still?
-					// err = ensureBridgeAddr(br, gws.family, &gw, n.ForceAddress)
-					// if err != nil {
-					// 	return fmt.Errorf("failed to set bridge addr: %v", err)
-					// }
-				}
-
-				if gws.gws != nil {
-					if err = enableIPForward(gws.family); err != nil {
-						return fmt.Errorf("failed to enable forwarding: %v", err)
-					}
-				}
-			}
-		}
-
-		if netConf.IPMasq {
-			chain := utils.FormatChainName(netConf.Name, args.ContainerID)
-			comment := utils.FormatComment(netConf.Name, args.ContainerID)
-			for _, ipc := range result.IPs {
-				if err = ip.SetupIPMasq(ip.Network(&ipc.Address), chain, comment); err != nil {
-					return err
-				}
-			}
 		}
 	}
 
@@ -381,9 +225,4 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 func cmdDel(args *skel.CmdArgs) error {
 	return nil
-}
-
-func cmdGet(args *skel.CmdArgs) error {
-	// TODO: implement
-	return fmt.Errorf("not implemented")
 }
