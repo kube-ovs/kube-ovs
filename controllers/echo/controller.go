@@ -17,12 +17,39 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package controllers
+package echo
 
 import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
+	"github.com/kube-ovs/kube-ovs/controllers"
 )
 
-type Controller interface {
-	HandleMessage(msg ofp13.OFMessage) error
+type echoController struct {
+	sendBuffer chan ofp13.OFMessage
+}
+
+func NewEchoController(sendBuffer chan ofp13.OFMessage) controllers.Controller {
+	return &echoController{
+		sendBuffer: sendBuffer,
+	}
+}
+
+func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
+	switch msgType := msg.(type) {
+	case *ofp13.OfpHeader:
+		if msgType.Type == ofp13.OFPT_ECHO_REQUEST {
+			echoReply := ofp13.NewOfpEchoReply()
+			e.sendBuffer <- echoReply
+			return nil
+		}
+
+		if msgType.Type == ofp13.OFPT_ECHO_REPLY {
+			// TODO: log the echo request if requested
+			return nil
+		}
+
+	default:
+	}
+
+	return nil
 }

@@ -72,15 +72,9 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConn(conn) {
-	// send hello as requried by the open flow protocol when new connections are established
-	hello := ofp13.NewOfpHello()
-	_, err := conn.Write(hello.Serialize())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	// TODO: pass in registered controllers
+	ofconn := NewOFConn(conn)
+	go ofconn.ReadMessages()
+	go ofconn.SendMessages()
 
-	dp := gofc.NewDatapath(conn)
-	go dp.recvLoop()
-	go dp.sendLoop()
 }

@@ -17,12 +17,16 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package controllers
+package protocol
 
 import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 )
 
-type Controller interface {
-	HandleMessage(msg ofp13.OFMessage) error
+func SerializeMessage(msg ofp13.OFMessage) []byte {
+	return msg.Serialize()
+}
+
+func ParseMessage(buf []byte) ofp13.OFMessage {
+	return ofp13.Parse(buf)
 }
