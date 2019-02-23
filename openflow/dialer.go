@@ -17,13 +17,23 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package main
+package openflow
 
 import (
-	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/version"
+	"net"
+
+	"github.com/Kmotiko/gofc"
 )
 
-func main() {
-	skel.PluginMain(cmdAdd, cmdGet, cmdDel, version.All, "TODO")
+const (
+	defaultBridgeTCPAddr string = "127.0.0.1:6653"
+)
+
+func DialBridge() (net.Conn, error) {
+	conn, err := net.Dial("tcp", defaultBridgeTCPAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }

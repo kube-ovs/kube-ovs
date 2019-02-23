@@ -17,13 +17,13 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package main
+package controllers
 
 import (
-	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/version"
+	"net"
 )
 
-func main() {
-	skel.PluginMain(cmdAdd, cmdGet, cmdDel, version.All, "TODO")
+type Controller interface {
+	HandleConn(conn *net.TCPConn)
+	DialConn(addr string) (net.Conn, error)
 }

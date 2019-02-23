@@ -20,10 +20,9 @@ under the License.
 package main
 
 import (
-	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/version"
+	"fmt"
 )
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdGet, cmdDel, version.All, "TODO")
+	fmt.Println("Starting kube-ovs")
 }
