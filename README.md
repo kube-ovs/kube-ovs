@@ -1,2 +1,2 @@
 # kube-ovs
-[WIP] An Opinionated Kubernetes Networking Plugin based on Open vSwitch 
+[WIP] A Kubernetes Networking Plugin based on Open vSwitch
