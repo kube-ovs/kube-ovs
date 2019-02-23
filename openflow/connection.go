@@ -21,31 +21,39 @@ package openflow
 
 import (
 	"bytes"
+	"encoding/binary"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
+	"github.com/kube-ovs/kube-ovs/controllers/echo"
+	"github.com/kube-ovs/kube-ovs/controllers/hello"
 	"github.com/kube-ovs/kube-ovs/openflow/protocol"
 )
-
-// DataPath code in gofc doesnt' export the send/recv loops that are pretty important...
-// might be worth while to do packet handling ourselves here and only leverage gofc for the binary encoding of OF messages.
 
 // OFConn handles message processes coming from a specific connection
 // There should be one instance of OFConn per connection from the switch
 type OFConn struct {
-	buffer      chan *bytes.Buffer
-	sendBuffer  chan ofp13.OFMessage
 	controllers []controllers.Controller
 	conn        *net.TCPConn
-	datapathID  uint64
+	// TODO: set this field
+	datapathID uint64
 }
 
-func NewOFConn(conn *net.TCPConn, controllers []controllers.Controller) *OFConn {
+func NewOFConn(conn *net.TCPConn) *OFConn {
 	return &OFConn{
-		sendBuffer:  make(chan ofp13.OFMessage, 10),
 		conn:        conn,
-		controllers: controllers,
+		controllers: DefaultControllers(conn),
+	}
+}
+
+func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
+	helloController := hello.NewHelloController(conn)
+	echoController := echo.NewEchoController(conn)
+
+	return []controllers.Controller{
+		helloController,
+		echoController,
 	}
 }
 
@@ -73,29 +81,15 @@ func (of *OFConn) ReadMessages() {
 	}
 }
 
-func (of *OFConn) SendMessages() {
-	for {
-		msg := <-(of.sendBuffer)
-		byteData := msg.Serialize()
-		_, err := of.conn.Write(byteData)
-		if err != nil {
-			// TODO: log error once logging lib is decided
-			return
-		}
-	}
-}
-
 // processPacket is a generic placeholder for how OF messages will be handled
-func (of *OFConn) processPacket(buf []byte) {
+func (of *OFConn) processPacket(buf []byte) error {
 	// not implemented yet
 	msg := protocol.ParseMessage(buf)
 	return of.DispatchToControllers(msg)
 }
 
 // DispatchToControllers sends the OFMessage to each controller
-// passing any valid returned values to sendBuffer to be sent back out
-// the connection
-func (of *OFConn) DispatchToControllers(msg ofp13.OFMessage) {
+func (of *OFConn) DispatchToControllers(msg ofp13.OFMessage) error {
 	for _, controller := range of.controllers {
 		err := controller.HandleMessage(msg)
 		if err != nil {
@@ -104,4 +98,6 @@ func (of *OFConn) DispatchToControllers(msg ofp13.OFMessage) {
 			continue
 		}
 	}
+
+	return nil
 }

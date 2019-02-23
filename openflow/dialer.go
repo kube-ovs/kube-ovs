@@ -21,8 +21,6 @@ package openflow
 
 import (
 	"net"
-
-	"github.com/Kmotiko/gofc"
 )
 
 const (
@@ -35,5 +33,5 @@ func DialBridge() (net.Conn, error) {
 		return nil, err
 	}
 
-	return c, nil
+	return conn, nil
 }

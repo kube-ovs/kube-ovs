@@ -20,12 +20,8 @@ under the License.
 package openflow
 
 import (
+	"fmt"
 	"net"
-
-	"github.com/kube-ovs/kube-ovs/controllers/pods"
-
-	"github.com/Kmotiko/gofc"
-	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 )
 
 const (
@@ -51,14 +47,6 @@ func NewServer() (*Server, error) {
 	return &Server{listener: listener}, nil
 }
 
-func (s *Server) RegisterControllers() {
-	podController := pods.NewPodController()
-	// don't love this pattern, should change it
-	// maybe something that follows a builder pattern where an interfaace can be
-	// passed into a central controller?
-	gofc.GetAppManager().RegistApplication(podController)
-}
-
 func (s *Server) Serve() {
 	for {
 		conn, err := s.listener.AcceptTCP()
@@ -71,7 +59,7 @@ func (s *Server) Serve() {
 	}
 }
 
-func (s *Server) handleConn(conn) {
+func (s *Server) handleConn(conn *net.TCPConn) {
 	// TODO: pass in registered controllers
 	ofconn := NewOFConn(conn)
 	go ofconn.ReadMessages()

@@ -20,6 +20,8 @@ under the License.
 package hello
 
 import (
+	"net"
+
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
 )
@@ -28,13 +30,11 @@ import (
 // helloController immiediately sends a OF_HELLO message
 // TODO: should this handle feature requests as well?
 type helloController struct {
-	sendBuffer chan ofp13.OFMessage
+	conn *net.TCPConn
 }
 
-func NewHelloController(sendBuffer chan ofp13.OFMessage) controllers.Controller {
-	controller := &helloController{
-		sendBuffer: sendBuffer,
-	}
+func NewHelloController(conn *net.TCPConn) controllers.Controller {
+	controller := &helloController{conn}
 
 	controller.SendHello()
 	return controller
@@ -48,11 +48,15 @@ func (h *helloController) HandleMessage(msg ofp13.OFMessage) error {
 	// hello received, next thing to do is send a feature request message
 	// to receive the data path ID of the switch
 	featureReq := ofp13.NewOfpFeaturesRequest()
-	h.sendBuffer <- featureReq
-	return nil
+	_, err := h.conn.Write(featureReq.Serialize())
+	return err
 }
 
 func (h *helloController) SendHello() {
 	hello := ofp13.NewOfpHello()
-	h.sendBuffer <- hello
+	_, err := h.conn.Write(hello.Serialize())
+	if err != nil {
+		// log this error
+		return
+	}
 }
