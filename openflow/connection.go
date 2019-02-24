@@ -77,7 +77,6 @@ func (of *OFConn) ReadMessages() {
 		size, err := reader.Read(buf)
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
-				// still close connections on io.EOF errors, but no need to log
 				if err != io.EOF {
 					klog.Errorf("error reading connection: %s", err.Error())
 				}
@@ -87,19 +86,14 @@ func (of *OFConn) ReadMessages() {
 			continue
 		}
 
-		for i := 0; i < size; {
-			msgLen := protocol.MessageLength(buf)
-			msg := protocol.ParseMessage(buf[i : i+msgLen])
-			klog.Infof("received message of size %v", msg.Size())
+		msg := protocol.ParseMessage(buf)
+		klog.Infof("received message of size %v", msg.Size())
 
-			err := of.DispatchToControllers(msg)
-			if err != nil {
-				klog.Errorf("error handling msg from controller: %v", err)
-				continue
-			}
-
-			i += msgLen
+		err := of.DispatchToControllers(msg)
+		if err != nil {
+			klog.Errorf("error handling msg from controller: %v", err)
 		}
+
 	}
 }
 
