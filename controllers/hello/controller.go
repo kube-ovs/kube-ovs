@@ -24,6 +24,8 @@ import (
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
+
+	"k8s.io/klog"
 )
 
 // helloController implements the Controller interface
@@ -59,4 +61,6 @@ func (h *helloController) SendHello() {
 		// log this error
 		return
 	}
+
+	klog.Info("OF_HELLO message sent")
 }

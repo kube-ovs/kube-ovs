@@ -63,7 +63,6 @@ func (of *OFConn) ReadMessages() {
 	for {
 		size, err := of.conn.Read(buf)
 		if err != nil {
-			// TODO: log error once logging library is decided.
 			klog.Errorf("error reading from connection: %v", err)
 			return
 		}
@@ -71,10 +70,11 @@ func (of *OFConn) ReadMessages() {
 		for i := 0; i < size; {
 			msgLen := protocol.MessageLength(buf)
 			msg := protocol.ParseMessage(buf[i : i+msgLen])
+			klog.Infof("received message of size %v", msg.Size())
 
 			err := of.DispatchToControllers(msg)
 			if err != nil {
-				// TODO: log
+				klog.Errorf("error handling msg from controller: %v", err)
 				continue
 			}
 
