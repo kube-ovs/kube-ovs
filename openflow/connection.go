@@ -69,11 +69,15 @@ func (of *OFConn) ReadMessages() {
 		of.conn.SetReadDeadline(time.Now().Add(time.Second))
 		size, err := bufio.NewReader(of.conn).Read(buf)
 		if err != nil {
-			if err != io.EOF {
-				klog.Errorf("error reading from connection: %v", err)
+			if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
+				// still close connections on io.EOF errors, but no need to log
+				if err != io.EOF {
+					klog.Errorf("error reading connection: %s", err.Error())
+				}
+				return
 			}
 
-			break
+			continue
 		}
 
 		for i := 0; i < size; {
