@@ -58,7 +58,7 @@ func (h *helloController) SendHello() {
 	hello := ofp13.NewOfpHello()
 	_, err := h.conn.Write(hello.Serialize())
 	if err != nil {
-		// log this error
+		klog.Errorf("error writing to connection: %v", err)
 		return
 	}
 

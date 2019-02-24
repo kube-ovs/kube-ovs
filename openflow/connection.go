@@ -87,7 +87,7 @@ func (of *OFConn) ReadMessages() {
 		}
 
 		msg := protocol.ParseMessage(buf)
-		klog.Infof("received message %v", msg)
+		klog.Infof("received message %+v", msg)
 
 		err = of.DispatchToControllers(msg)
 		if err != nil {
