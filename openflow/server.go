@@ -22,6 +22,8 @@ package openflow
 import (
 	"fmt"
 	"net"
+
+	"k8s.io/klog"
 )
 
 const (
@@ -52,7 +54,8 @@ func (s *Server) Serve() {
 		conn, err := s.listener.AcceptTCP()
 		if err != nil {
 			// TODO: log this error
-			return
+			klog.Errorf("error accepting TCP connections: %v", err)
+			continue
 		}
 
 		go s.handleConn(conn)
@@ -60,7 +63,6 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConn(conn *net.TCPConn) {
-	// TODO: pass in registered controllers
 	ofconn := NewOFConn(conn)
-	go ofconn.ReadMessages()
+	ofconn.ReadMessages()
 }

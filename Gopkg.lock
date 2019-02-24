@@ -90,6 +90,14 @@
   pruneopts = "UT"
   revision = "cd391775e71e684db52b63df9affd58269495083"
 
+[[projects]]
+  digest = "1:72fd56341405f53c745377e0ebc4abeff87f1a048e0eea6568a20212650f5a82"
+  name = "k8s.io/klog"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "71442cd4037d612096940ceb0f3fec3f7fff66e0"
+  version = "v0.2.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -106,6 +114,7 @@
     "github.com/digitalocean/go-openvswitch/ovs",
     "github.com/j-keck/arping",
     "github.com/vishvananda/netlink",
+    "k8s.io/klog",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

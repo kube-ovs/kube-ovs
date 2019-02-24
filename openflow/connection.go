@@ -27,6 +27,8 @@ import (
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
 	"github.com/kube-ovs/kube-ovs/controllers/hello"
 	"github.com/kube-ovs/kube-ovs/openflow/protocol"
+
+	"k8s.io/klog"
 )
 
 // OFConn handles message processes coming from a specific connection
@@ -62,6 +64,7 @@ func (of *OFConn) ReadMessages() {
 		size, err := of.conn.Read(buf)
 		if err != nil {
 			// TODO: log error once logging library is decided.
+			klog.Errorf("error reading from connection: %v", err)
 			return
 		}
 

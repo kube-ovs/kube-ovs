@@ -23,6 +23,8 @@ import (
 	"fmt"
 
 	"github.com/kube-ovs/kube-ovs/openflow"
+
+	"k8s.io/klog"
 )
 
 func main() {
@@ -30,7 +32,7 @@ func main() {
 
 	server, err := openflow.NewServer()
 	if err != nil {
-		fmt.Printf("error starting open flow server: %v", err)
+		klog.Errorf("error starting open flow server: %v", err)
 	}
 
 	server.Serve()
