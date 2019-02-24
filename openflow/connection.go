@@ -20,7 +20,6 @@ under the License.
 package openflow
 
 import (
-	"encoding/binary"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
@@ -57,8 +56,7 @@ func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 }
 
 func (of *OFConn) ReadMessages() {
-	// is this max size of OF message?
-	buf := make([]byte, 1024*64)
+	var buf []byte
 
 	for {
 		size, err := of.conn.Read(buf)
@@ -68,23 +66,18 @@ func (of *OFConn) ReadMessages() {
 		}
 
 		for i := 0; i < size; {
-			msgLen := binary.BigEndian.Uint16(buf[i+2:])
-			err := of.processPacket(buf[i : i+(int)(msgLen)])
+			msgLen := protocol.MessageLength(buf)
+			msg := protocol.ParseMessage(buf[i : i+msgLen])
+
+			err := of.DispatchToControllers(msg)
 			if err != nil {
 				// TODO: log
 				continue
 			}
 
-			i += (int)(msgLen)
+			i += msgLen
 		}
 	}
-}
-
-// processPacket is a generic placeholder for how OF messages will be handled
-func (of *OFConn) processPacket(buf []byte) error {
-	// not implemented yet
-	msg := protocol.ParseMessage(buf)
-	return of.DispatchToControllers(msg)
 }
 
 // DispatchToControllers sends the OFMessage to each controller
