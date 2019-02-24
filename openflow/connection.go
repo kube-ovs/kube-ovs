@@ -74,7 +74,7 @@ func (of *OFConn) ReadMessages() {
 		msgLen := protocol.MessageLength(header)
 		buf := make([]byte, msgLen)
 
-		size, err := reader.Read(buf)
+		_, err = reader.Read(buf)
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
 				if err != io.EOF {
@@ -89,7 +89,7 @@ func (of *OFConn) ReadMessages() {
 		msg := protocol.ParseMessage(buf)
 		klog.Infof("received message of size %v", msg.Size())
 
-		err := of.DispatchToControllers(msg)
+		err = of.DispatchToControllers(msg)
 		if err != nil {
 			klog.Errorf("error handling msg from controller: %v", err)
 		}
