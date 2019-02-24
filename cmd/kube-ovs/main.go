@@ -21,8 +21,17 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/kube-ovs/kube-ovs/openflow"
 )
 
 func main() {
 	fmt.Println("Starting kube-ovs")
+
+	server, err := openflow.NewServer()
+	if err != nil {
+		fmt.Printf("error starting open flow server: %v", err)
+	}
+
+	server.Serve()
 }
