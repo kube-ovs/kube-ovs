@@ -58,6 +58,7 @@ func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 }
 
 func (of *OFConn) ReadMessages() {
+	klog.Info("reading messages from connection")
 	var buf []byte
 
 	for {
@@ -66,6 +67,8 @@ func (of *OFConn) ReadMessages() {
 			klog.Errorf("error reading from connection: %v", err)
 			return
 		}
+
+		klog.Infof("read from connection and received %d bytes", size)
 
 		for i := 0; i < size; {
 			msgLen := protocol.MessageLength(buf)
