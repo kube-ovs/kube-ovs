@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"io"
 	"net"
-	"time"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
@@ -65,9 +64,7 @@ func (of *OFConn) ReadMessages() {
 	klog.Info("reading messages from connection")
 
 	for {
-		of.conn.SetReadDeadline(time.Now().Add(time.Second))
 		reader := bufio.NewReader(of.conn)
-
 		header, err := reader.Peek(8)
 		if err != nil {
 			klog.Errorf("could not peek at message header: %v", err)
