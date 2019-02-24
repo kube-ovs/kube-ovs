@@ -20,6 +20,7 @@ under the License.
 package openflow
 
 import (
+	"io"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
@@ -58,14 +59,18 @@ func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 }
 
 func (of *OFConn) ReadMessages() {
+	defer of.conn.Close()
 	klog.Info("reading messages from connection")
 	var buf []byte
 
 	for {
 		size, err := of.conn.Read(buf)
 		if err != nil {
-			klog.Errorf("error reading from connection: %v", err)
-			return
+			if err != io.EOF {
+				klog.Errorf("error reading from connection: %v", err)
+			}
+
+			break
 		}
 
 		klog.Infof("read from connection and received %d bytes", size)

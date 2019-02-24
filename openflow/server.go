@@ -53,7 +53,6 @@ func (s *Server) Serve() {
 	for {
 		conn, err := s.listener.AcceptTCP()
 		if err != nil {
-			// TODO: log this error
 			klog.Errorf("error accepting TCP connections: %v", err)
 			continue
 		}
