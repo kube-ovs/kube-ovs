@@ -24,6 +24,8 @@ import (
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
+
+	"k8s.io/klog"
 )
 
 type echoController struct {
@@ -31,6 +33,13 @@ type echoController struct {
 }
 
 func NewEchoController(conn *net.TCPConn) controllers.Controller {
+	// send initial echo request
+	echoReq := ofp13.NewOfpEchoRequest()
+	_, err := conn.Write(echoReq.Serialize())
+	if err != nil {
+		klog.Errorf("error sending initial echo request: %v", err)
+	}
+
 	return &echoController{conn}
 }
 
@@ -45,6 +54,7 @@ func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
 
 		if msgType.Type == ofp13.OFPT_ECHO_REPLY {
 			// TODO: log the echo request if requested
+			klog.Info("received echo")
 			return nil
 		}
 
