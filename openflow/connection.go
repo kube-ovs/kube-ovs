@@ -73,8 +73,6 @@ func (of *OFConn) ReadMessages() {
 			break
 		}
 
-		klog.Infof("read from connection and received %d bytes", size)
-
 		for i := 0; i < size; {
 			msgLen := protocol.MessageLength(buf)
 			msg := protocol.ParseMessage(buf[i : i+msgLen])
