@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:0af25de5322328e80df7ebdb3152be1bc0c141bda9e3faa271442e8d117bf85e"
+  name = "github.com/Kmotiko/gofc"
+  packages = ["ofprotocol/ofp13"]
+  pruneopts = "UT"
+  revision = "90dd328271b48d608568f9370c48530741f7b615"
+
+[[projects]]
   digest = "1:36f7c45919b24712f4969256c868b711b982605f2772a4c739da51a16533d17f"
   name = "github.com/containernetworking/cni"
   packages = [
@@ -32,12 +40,12 @@
   version = "v0.7.4"
 
 [[projects]]
-  digest = "1:df4af3a8e15cd72b068b8d898598001935edce4eac4eb5a3d7fd906036123ff4"
+  digest = "1:536efb6849eb903912acbec0183e1b34e31cc75217b44988aedde59ad249c693"
   name = "github.com/coreos/go-iptables"
   packages = ["iptables"]
   pruneopts = "UT"
-  revision = "259c8e6a4275d497442c721fa52204d7a58bde8b"
-  version = "v0.2.0"
+  revision = "47f22b0dd3355c0ba570ba12b0b8a36bf214c04b"
+  version = "v0.4.0"
 
 [[projects]]
   branch = "master"
@@ -76,16 +84,17 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8207c052fb873f83c61a5aa16f6add5feb9881eda2112b56f69fd3b9e7f55c3f"
+  digest = "1:d0e9a312c4610a508569ab25e54d34600b1a96d19b1866ece104ffdf1c1b9d2c"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "d0b11bdaac8adb652bff00e49bcacf992835621a"
+  revision = "cd391775e71e684db52b63df9affd58269495083"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/Kmotiko/gofc/ofprotocol/ofp13",
     "github.com/containernetworking/cni/pkg/skel",
     "github.com/containernetworking/cni/pkg/types",
     "github.com/containernetworking/cni/pkg/types/current",
