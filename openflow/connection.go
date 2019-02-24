@@ -63,11 +63,21 @@ func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 func (of *OFConn) ReadMessages() {
 	defer of.conn.Close()
 	klog.Info("reading messages from connection")
-	var buf []byte
 
 	for {
 		of.conn.SetReadDeadline(time.Now().Add(time.Second))
-		size, err := bufio.NewReader(of.conn).Read(buf)
+		reader := bufio.NewReader(of.conn)
+
+		header, err := reader.Peek(8)
+		if err != nil {
+			klog.Errorf("could not peek at message header: %v", err)
+			continue
+		}
+
+		msgLen := protocol.MessageLength(header)
+		buf := make([]byte, msgLen)
+
+		size, err := reader.Read(buf)
 		if err != nil {
 			if opErr, ok := err.(*net.OpError); !ok || !opErr.Timeout() {
 				// still close connections on io.EOF errors, but no need to log
