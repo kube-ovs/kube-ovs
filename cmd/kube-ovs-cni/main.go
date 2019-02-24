@@ -25,5 +25,5 @@ import (
 )
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdGet, cmdDel, version.All, "TODO")
+	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }
