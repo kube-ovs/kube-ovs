@@ -53,7 +53,6 @@ func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
 		}
 
 		if msgType.Type == ofp13.OFPT_ECHO_REPLY {
-			// TODO: log the echo request if requested
 			klog.Info("received echo")
 			return nil
 		}
