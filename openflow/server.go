@@ -63,6 +63,4 @@ func (s *Server) handleConn(conn *net.TCPConn) {
 	// TODO: pass in registered controllers
 	ofconn := NewOFConn(conn)
 	go ofconn.ReadMessages()
-	go ofconn.SendMessages()
-
 }

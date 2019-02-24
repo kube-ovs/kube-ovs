@@ -20,7 +20,6 @@ under the License.
 package openflow
 
 import (
-	"bytes"
 	"encoding/binary"
 	"net"
 
@@ -34,8 +33,8 @@ import (
 // OFConn handles message processes coming from a specific connection
 // There should be one instance of OFConn per connection from the switch
 type OFConn struct {
-	controllers []controllers.Controller
 	conn        *net.TCPConn
+	controllers []controllers.Controller
 	// TODO: set this field
 	datapathID uint64
 }

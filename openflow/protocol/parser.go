@@ -20,6 +20,8 @@ under the License.
 package protocol
 
 import (
+	"encoding/binary"
+
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 )
 
@@ -29,4 +31,12 @@ func SerializeMessage(msg ofp13.OFMessage) []byte {
 
 func ParseMessage(buf []byte) ofp13.OFMessage {
 	return ofp13.Parse(buf)
+}
+
+func MessageLength(buf []byte) int {
+	// Length attribute in OFP header is uint16 read in BigEndian
+	// buf[2:] because first byte is version, second byte is type and
+	// length is next
+	// TODO: check length of byte sequence first?
+	return int(binary.BigEndian.Uint16(buf[2:]))
 }
