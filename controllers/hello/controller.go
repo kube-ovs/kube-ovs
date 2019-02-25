@@ -30,7 +30,6 @@ import (
 
 // helloController implements the Controller interface
 // helloController immiediately sends a OF_HELLO message
-// TODO: should this handle feature requests as well?
 type helloController struct {
 	conn *net.TCPConn
 }
@@ -40,6 +39,10 @@ func NewHelloController(conn *net.TCPConn) controllers.Controller {
 
 	controller.SendHello()
 	return controller
+}
+
+func (h *helloController) Name() string {
+	return "hello"
 }
 
 func (h *helloController) HandleMessage(msg ofp13.OFMessage) error {

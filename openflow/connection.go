@@ -38,8 +38,7 @@ import (
 type OFConn struct {
 	conn        *net.TCPConn
 	controllers []controllers.Controller
-	// TODO: set this field
-	datapathID uint64
+	datapathID  uint64
 }
 
 func NewOFConn(conn *net.TCPConn) *OFConn {
@@ -89,11 +88,18 @@ func (of *OFConn) ReadMessages() {
 		msg := protocol.ParseMessage(buf)
 		klog.Infof("received message %+v", msg)
 
+		// handle special case of switch feature request message to get datapath ID
+		if features, ok := msg.(*ofp13.OfpSwitchFeatures); ok {
+			of.datapathID = features.DatapathId
+			klog.Infof("set datapath ID to %d", features.DatapathId)
+
+			continue
+		}
+
 		err = of.DispatchToControllers(msg)
 		if err != nil {
 			klog.Errorf("error handling msg from controller: %v", err)
 		}
-
 	}
 }
 
@@ -102,8 +108,7 @@ func (of *OFConn) DispatchToControllers(msg ofp13.OFMessage) error {
 	for _, controller := range of.controllers {
 		err := controller.HandleMessage(msg)
 		if err != nil {
-			// TODO: log this
-			// return early?
+			klog.Errorf("error handling message from %q controller, err: %v", controller.Name(), err)
 			continue
 		}
 	}

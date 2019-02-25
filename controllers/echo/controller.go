@@ -43,6 +43,10 @@ func NewEchoController(conn *net.TCPConn) controllers.Controller {
 	return &echoController{conn}
 }
 
+func (e *echoController) Name() string {
+	return "echo"
+}
+
 func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
 	switch msgType := msg.(type) {
 	case *ofp13.OfpHeader:

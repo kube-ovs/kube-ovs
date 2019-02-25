@@ -24,5 +24,6 @@ import (
 )
 
 type Controller interface {
+	Name() string
 	HandleMessage(msg ofp13.OFMessage) error
 }
