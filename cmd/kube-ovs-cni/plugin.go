@@ -275,7 +275,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err := ovsClient.VSwitch.AddPort(netConf.BridgeName, hostInterface.Name)
+	err = ovsClient.VSwitch.AddPort(netConf.BridgeName, hostInterface.Name)
 	if err != nil {
 		return err
 	}
