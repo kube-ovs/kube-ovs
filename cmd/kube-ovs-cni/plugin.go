@@ -275,6 +275,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	err := ovsClient.VSwitch.AddPort(netConf.BridgeName, hostInterface.Name)
+	if err != nil {
+		return err
+	}
+
 	result := &current.Result{CNIVersion: cniVersion, Interfaces: []*current.Interface{bridge, hostInterface, containerInterface}}
 
 	if netConf.IPAM.Type != "" {
