@@ -142,7 +142,10 @@ func delPort(bridge, port string) error {
 	return nil
 }
 
-func getPortByNetNS(bridge, containerID string) (string, error) {
+// getPortByContainerID finds the OVS port name by container ID
+// TODO: CNI delete can be called multiple times so this method will often
+// return errors even though the port was successfully deleted.
+func getPortByContainerID(bridge, containerID string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
 		"port", fmt.Sprintf("external-ids:containerid=%s", containerID),
@@ -464,7 +467,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortByNetNS(netConf.BridgeName, args.ContainerID)
+	portName, err := getPortByContainerID(netConf.BridgeName, args.ContainerID)
 	if err != nil {
 		return err
 	}
