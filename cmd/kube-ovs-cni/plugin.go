@@ -112,10 +112,10 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 
 // addPort adds port to a bridge adding id as a id=<id>
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, id string) error {
+func addPort(bridgeName, port, netns string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
-		"--", "set", "port", port, fmt.Sprintf("external-ids:ifName=%s", id),
+		"--", "set", "port", port, fmt.Sprintf("external-ids:netns=%s", netns),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -141,16 +141,16 @@ func delPort(bridge, port string) error {
 	return nil
 }
 
-func getPortNameByID(bridgeName, id string) (string, error) {
+func getPortByNetNS(bridgeName, netns string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
-		"port", fmt.Sprintf("external-ids:id=%s", id),
+		"port", fmt.Sprintf("external-ids:netns=%s", netns),
 	}
 
 	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get OVS port with ID %q from bridge %q, err: %v",
-			id, bridgeName, err)
+		return "", fmt.Errorf("failed to get OVS port with netns %q from bridge %q, err: %v",
+			netns, bridgeName, err)
 	}
 
 	dbData := struct {
@@ -161,7 +161,7 @@ func getPortNameByID(bridgeName, id string) (string, error) {
 	}
 
 	if len(dbData.data) == 0 {
-		return "", fmt.Errorf("OVS port with ID %q was not found", id)
+		return "", fmt.Errorf("OVS port with netns %q was not found", netns)
 	}
 
 	portName := dbData.data[0][0]
@@ -329,7 +329,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.IfName)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns)
 	if err != nil {
 		return err
 	}
@@ -463,7 +463,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortNameByID(netConf.BridgeName, args.IfName)
+	portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
 	if err != nil {
 		return err
 	}
