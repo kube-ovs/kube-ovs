@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"runtime"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -35,7 +36,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils"
-	"github.com/digitalocean/go-openvswitch/ovs"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 )
@@ -89,11 +89,14 @@ func bridgeByName(name string) (netlink.Link, error) {
 	return br, nil
 }
 
-func setupBridgeIfNotExists(n *NetConf, ovs *ovs.Client) (*current.Interface, error) {
-	// create bridge if necessary
-	err := ovs.VSwitch.AddBridge(n.BridgeName)
+func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
+	command := []string{
+		"--may-exist", "add-br", n.BridgeName,
+	}
+
+	_, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create OVS bridge %q: %v", n.BridgeName, err)
+		return nil, fmt.Errorf("failed to setup OVS bridge %q, err: %v", n.BridgeName, err)
 	}
 
 	br, err := bridgeByName(n.BridgeName)
@@ -105,6 +108,64 @@ func setupBridgeIfNotExists(n *NetConf, ovs *ovs.Client) (*current.Interface, er
 		Name: br.Attrs().Name,
 		Mac:  br.Attrs().HardwareAddr.String(),
 	}, nil
+}
+
+// addPort adds port to a bridge adding id as a id=<id>
+// in the external-ids column of the ports table
+func addPort(bridgeName, port, id string) error {
+	commands := []string{
+		"--may-exist", "add-port", bridgeName, port,
+		"--", "set", "port", port, fmt.Sprintf("external-ids:ifName=%s", id),
+	}
+
+	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to add OVS port %q to bridge %q, err: %v",
+			port, bridgeName, err)
+	}
+
+	return nil
+}
+
+func delPort(bridge, port string) error {
+	commands := []string{
+		"--if-exists", "del-port", bridge, port,
+	}
+
+	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete OVS port %q on bridge %q, err: %v",
+			port, bridge, err)
+	}
+
+	return nil
+}
+
+func getPortNameByID(bridgeName, id string) (string, error) {
+	commands := []string{
+		"--format=json", "--column=name", "find",
+		"port", fmt.Sprintf("external-ids:id=%s", id),
+	}
+
+	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get OVS port with ID %q from bridge %q, err: %v",
+			id, bridgeName, err)
+	}
+
+	dbData := struct {
+		data [][]string
+	}{}
+	if err = json.Unmarshal(out, &dbData); err != nil {
+		return "", err
+	}
+
+	if len(dbData.data) == 0 {
+		return "", fmt.Errorf("OVS port with ID %q was not found", id)
+	}
+
+	portName := dbData.data[0][0]
+	return portName, nil
 }
 
 func setupVeth(netns ns.NetNS, ifName string) (*current.Interface, *current.Interface, error) {
@@ -243,15 +304,8 @@ func enableIPForward(family int) error {
 	return ip.EnableIP6Forward()
 }
 
-func addToSwitch(ovsc *ovs.Client, hostIface string, conIface string, bridge string, contNetnsPath string) error {
-	ovsc.VSwitch.AddPort(bridge, hostIface)
-	return nil
-}
-
 func cmdAdd(args *skel.CmdArgs) error {
 	success := false
-
-	ovsClient := ovs.New()
 
 	netConf, cniVersion, err := loadNetConf(args.StdinData)
 	if err != nil {
@@ -259,7 +313,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// hashing function to get containerID -> OVS port?
-	bridge, err := setupBridgeIfNotExists(netConf, ovsClient)
+	bridge, err := setupBridgeIfNotExists(netConf)
 	if err != nil {
 		return fmt.Errorf("failed to setup bridge: %v", err)
 	}
@@ -275,7 +329,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = ovsClient.VSwitch.AddPort(netConf.BridgeName, hostInterface.Name)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.IfName)
 	if err != nil {
 		return err
 	}
@@ -404,10 +458,56 @@ func cmdAdd(args *skel.CmdArgs) error {
 }
 
 func cmdDel(args *skel.CmdArgs) error {
-	return nil
-}
+	netConf, _, err := loadNetConf(args.StdinData)
+	if err != nil {
+		return err
+	}
 
-func cmdGet(args *skel.CmdArgs) error {
-	// TODO: implement
-	return fmt.Errorf("not implemented")
+	portName, err := getPortNameByID(netConf.BridgeName, args.IfName)
+	if err != nil {
+		return err
+	}
+
+	err = delPort(netConf.BridgeName, portName)
+	if err != nil {
+		return err
+	}
+
+	if netConf.IPAM.Type != "" {
+		if err := ipam.ExecDel(netConf.IPAM.Type, args.StdinData); err != nil {
+			return err
+		}
+	}
+
+	if args.Netns == "" {
+		return nil
+	}
+
+	// There is a netns so try to clean up. Delete can be called multiple times
+	// so don't return an error if the device is already removed.
+	// If the device isn't there then don't try to clean up IP masq either.
+	var ipnets []*net.IPNet
+	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
+		var err error
+		ipnets, err = ip.DelLinkByNameAddr(args.IfName)
+		if err != nil && err == ip.ErrLinkNotFound {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	if netConf.IPAM.Type != "" && netConf.IPMasq {
+		chain := utils.FormatChainName(netConf.Name, args.ContainerID)
+		comment := utils.FormatComment(netConf.Name, args.ContainerID)
+		for _, ipn := range ipnets {
+			if err := ip.TeardownIPMasq(ipn, chain, comment); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
