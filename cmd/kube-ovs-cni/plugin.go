@@ -110,12 +110,12 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 	}, nil
 }
 
-// addPort adds port to a bridge adding id as a id=<id>
+// addPort adds port to a bridge, also adding the container ID
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, containerID, netns string) error {
+func addPort(bridgeName, port, containerID string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
-		"--", "set", "port", port, fmt.Sprintf("external-ids:netns=%s", netns),
+		"--", "set", "port", port,
 		fmt.Sprintf("external-ids:containerid=%s", containerID),
 	}
 
@@ -142,17 +142,16 @@ func delPort(bridge, port string) error {
 	return nil
 }
 
-func getPortByNetNS(bridgeName, containerID, netns string) (string, error) {
+func getPortByNetNS(bridge, containerID string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
-		"port", fmt.Sprintf("external-ids:netns=%s", netns),
-		fmt.Sprintf("external-ids:containerid=%s", containerID),
+		"port", fmt.Sprintf("external-ids:containerid=%s", containerID),
 	}
 
 	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get OVS port with netns %q from bridge %q, err: %v",
-			netns, bridgeName, err)
+		return "", fmt.Errorf("failed to get OVS port with container ID %q from bridge %q, err: %v",
+			containerID, bridge, err)
 	}
 
 	dbData := struct {
@@ -163,7 +162,7 @@ func getPortByNetNS(bridgeName, containerID, netns string) (string, error) {
 	}
 
 	if len(dbData.data) == 0 {
-		return "", fmt.Errorf("OVS port with netns %q was not found", netns)
+		return "", fmt.Errorf("OVS port with container ID %q was not found", containerID)
 	}
 
 	portName := dbData.data[0][0]
@@ -331,7 +330,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.ContainerID, args.Netns)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.ContainerID)
 	if err != nil {
 		return err
 	}
@@ -465,7 +464,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortByNetNS(netConf.BridgeName, args.ContainerID, args.Netns)
+	portName, err := getPortByNetNS(netConf.BridgeName, args.ContainerID)
 	if err != nil {
 		return err
 	}
