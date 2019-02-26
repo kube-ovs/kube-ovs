@@ -112,10 +112,11 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 
 // addPort adds port to a bridge adding id as a id=<id>
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, netns string) error {
+func addPort(bridgeName, port, containerID, netns string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
 		"--", "set", "port", port, fmt.Sprintf("external-ids:netns=%s", netns),
+		fmt.Sprintf("external-ids:containerid=%s", containerID),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -141,10 +142,11 @@ func delPort(bridge, port string) error {
 	return nil
 }
 
-func getPortByNetNS(bridgeName, netns string) (string, error) {
+func getPortByNetNS(bridgeName, containerID, netns string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
 		"port", fmt.Sprintf("external-ids:netns=%s", netns),
+		fmt.Sprintf("external-ids:containerid=%s", containerID),
 	}
 
 	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -329,7 +331,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.ContainerID, args.Netns)
 	if err != nil {
 		return err
 	}
@@ -463,7 +465,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
+	portName, err := getPortByNetNS(netConf.BridgeName, args.ContainerID, args.Netns)
 	if err != nil {
 		return err
 	}
