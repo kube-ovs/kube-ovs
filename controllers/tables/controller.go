@@ -17,16 +17,40 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package controllers
+package tables
 
 import (
+	"net"
+
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
+	"github.com/kube-ovs/kube-ovs/controllers"
 )
 
-// Controller is the interface that should be implemented by all
-// kube-ovs controllers
-type Controller interface {
-	Name() string
-	Initialize() error
-	HandleMessage(msg ofp13.OFMessage) error
+const (
+	defaultTable = 0
+)
+
+// tableController implements the controllers.Controller interface
+// tableController is responsible for creating the set of open flow tables
+type tableController struct {
+	conn *net.TCPConn
+}
+
+var _ controllers.Controller = &tableController{}
+
+func NewTableController(conn *net.TCPConn) controllers.Controller {
+	return &tableController{conn}
+}
+
+func (t *tableController) Name() string {
+	return "table"
+}
+
+func (t *tableController) Initialize() error {
+	// TODO: setup base tables
+	return nil
+}
+
+func (t *tableController) HandleMessage(msg ofp13.OFMessage) error {
+	return nil
 }

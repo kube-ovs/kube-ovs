@@ -20,6 +20,7 @@ under the License.
 package echo
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
@@ -32,19 +33,26 @@ type echoController struct {
 	conn *net.TCPConn
 }
 
-func NewEchoController(conn *net.TCPConn) controllers.Controller {
-	// send initial echo request
-	echoReq := ofp13.NewOfpEchoRequest()
-	_, err := conn.Write(echoReq.Serialize())
-	if err != nil {
-		klog.Errorf("error sending initial echo request: %v", err)
-	}
+var _ controllers.Controller = &echoController{}
 
+func NewEchoController(conn *net.TCPConn) controllers.Controller {
 	return &echoController{conn}
 }
 
 func (e *echoController) Name() string {
 	return "echo"
+}
+
+func (e *echoController) Initialize() error {
+	// send initial echo request
+	echoReq := ofp13.NewOfpEchoRequest()
+	_, err := e.conn.Write(echoReq.Serialize())
+	if err != nil {
+		return fmt.Errorf("error sending initial echo request: %v", err)
+	}
+
+	klog.Info("initial echo request sent")
+	return nil
 }
 
 func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
@@ -57,7 +65,7 @@ func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
 		}
 
 		if msgType.Type == ofp13.OFPT_ECHO_REPLY {
-			klog.Info("received echo")
+			klog.Info("received echo reply from switch")
 			return nil
 		}
 

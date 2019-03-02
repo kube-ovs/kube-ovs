@@ -63,5 +63,11 @@ func (s *Server) Serve() {
 
 func (s *Server) handleConn(conn *net.TCPConn) {
 	ofconn := NewOFConn(conn)
+	err := ofconn.InitializeControllers()
+	if err != nil {
+		klog.Errorf("error initializing controllers: %v", err)
+		return
+	}
+
 	ofconn.ReadMessages()
 }

@@ -21,6 +21,7 @@ package openflow
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
 	"github.com/kube-ovs/kube-ovs/controllers/hello"
+	"github.com/kube-ovs/kube-ovs/controllers/tables"
 	"github.com/kube-ovs/kube-ovs/openflow/protocol"
 
 	"k8s.io/klog"
@@ -51,11 +53,24 @@ func NewOFConn(conn *net.TCPConn) *OFConn {
 func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 	helloController := hello.NewHelloController(conn)
 	echoController := echo.NewEchoController(conn)
+	tableController := tables.NewTableController(conn)
 
 	return []controllers.Controller{
 		helloController,
 		echoController,
+		tableController,
 	}
+}
+
+func (of *OFConn) InitializeControllers() error {
+	for _, controller := range of.controllers {
+		err := controller.Initialize()
+		if err != nil {
+			return fmt.Errorf("error initializing controller %q, err: %v", controller.Name(), err)
+		}
+	}
+
+	return nil
 }
 
 func (of *OFConn) ReadMessages() {
@@ -64,6 +79,10 @@ func (of *OFConn) ReadMessages() {
 
 	for {
 		reader := bufio.NewReader(of.conn)
+
+		// peak into the first 8 bytes (the size of OF header messages)
+		// the header message contains the length of the entire message
+		// which we need later to move the reader forward
 		header, err := reader.Peek(8)
 		if err != nil {
 			klog.Errorf("could not peek at message header: %v", err)

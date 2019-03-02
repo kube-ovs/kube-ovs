@@ -20,6 +20,7 @@ under the License.
 package hello
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
@@ -29,20 +30,32 @@ import (
 )
 
 // helloController implements the Controller interface
-// helloController immiediately sends a OF_HELLO message
+// helloController immiediately sends an OF_HELLO message to the switch
 type helloController struct {
 	conn *net.TCPConn
 }
 
-func NewHelloController(conn *net.TCPConn) controllers.Controller {
-	controller := &helloController{conn}
+var _ controllers.Controller = &helloController{}
 
-	controller.SendHello()
-	return controller
+func NewHelloController(conn *net.TCPConn) controllers.Controller {
+	return &helloController{conn}
 }
 
 func (h *helloController) Name() string {
 	return "hello"
+}
+
+func (h *helloController) Initialize() error {
+	// send initial hello which is required to establish a propoer connection
+	// with an open flow switch.
+	hello := ofp13.NewOfpHello()
+	_, err := h.conn.Write(hello.Serialize())
+	if err != nil {
+		return fmt.Errorf("error writing to connection: %v", err)
+	}
+
+	klog.Info("OF_HELLO message sent to switch")
+	return nil
 }
 
 func (h *helloController) HandleMessage(msg ofp13.OFMessage) error {
@@ -55,15 +68,4 @@ func (h *helloController) HandleMessage(msg ofp13.OFMessage) error {
 	featureReq := ofp13.NewOfpFeaturesRequest()
 	_, err := h.conn.Write(featureReq.Serialize())
 	return err
-}
-
-func (h *helloController) SendHello() {
-	hello := ofp13.NewOfpHello()
-	_, err := h.conn.Write(hello.Serialize())
-	if err != nil {
-		klog.Errorf("error writing to connection: %v", err)
-		return
-	}
-
-	klog.Info("OF_HELLO message sent")
 }
