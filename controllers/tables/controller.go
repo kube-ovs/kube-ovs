@@ -27,7 +27,12 @@ import (
 )
 
 const (
-	defaultTable = 0
+	tableDefault         = 0
+	tableClassification  = 10
+	tableNetworkPolicies = 20
+	tableProxy           = 30
+	tableNAT             = 40
+	tableAudit           = 50
 )
 
 // tableController implements the controllers.Controller interface
@@ -47,7 +52,22 @@ func (t *tableController) Name() string {
 }
 
 func (t *tableController) Initialize() error {
-	// TODO: setup base tables
+	tables := []*ofp13.OfpTableMod{
+		ofp13.NewOfpTableMod(tableDefault, 0),
+		ofp13.NewOfpTableMod(tableClassification, 0),
+		ofp13.NewOfpTableMod(tableNetworkPolicies, 0),
+		ofp13.NewOfpTableMod(tableProxy, 0),
+		ofp13.NewOfpTableMod(tableNAT, 0),
+		ofp13.NewOfpTableMod(tableAudit, 0),
+	}
+
+	for _, table := range tables {
+		_, err := t.conn.Write(table.Serialize())
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
