@@ -27,12 +27,11 @@ import (
 )
 
 const (
-	tableDefault         = 0
-	tableClassification  = 10
-	tableNetworkPolicies = 20
-	tableProxy           = 30
-	tableNAT             = 40
-	tableAudit           = 50
+	tableClassification  = 0
+	tableNetworkPolicies = 10
+	tableProxy           = 20
+	tableNAT             = 30
+	tableAudit           = 40
 )
 
 // tableController implements the controllers.Controller interface
@@ -53,8 +52,6 @@ func (t *tableController) Name() string {
 
 func (t *tableController) Initialize() error {
 	tables := []*ofp13.OfpTableMod{
-		ofp13.NewOfpTableMod(tableDefault, 0),
-		ofp13.NewOfpTableMod(tableClassification, 0),
 		ofp13.NewOfpTableMod(tableNetworkPolicies, 0),
 		ofp13.NewOfpTableMod(tableProxy, 0),
 		ofp13.NewOfpTableMod(tableNAT, 0),
