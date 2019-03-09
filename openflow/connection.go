@@ -28,8 +28,8 @@ import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
+	"github.com/kube-ovs/kube-ovs/controllers/flows"
 	"github.com/kube-ovs/kube-ovs/controllers/hello"
-	"github.com/kube-ovs/kube-ovs/controllers/tables"
 	"github.com/kube-ovs/kube-ovs/openflow/protocol"
 
 	"k8s.io/klog"
@@ -53,12 +53,12 @@ func NewOFConn(conn *net.TCPConn) *OFConn {
 func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
 	helloController := hello.NewHelloController(conn)
 	echoController := echo.NewEchoController(conn)
-	tableController := tables.NewTableController(conn)
+	flowsController := flows.NewFlowsController(conn)
 
 	return []controllers.Controller{
 		helloController,
 		echoController,
-		tableController,
+		flowsController,
 	}
 }
 
