@@ -105,6 +105,10 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 		return nil, fmt.Errorf("failed to fetch bridge %q: %v", n.BridgeName, err)
 	}
 
+	if err := netlink.LinkSetUp(br); err != nil {
+		return nil, fmt.Errorf("failed to bring bridge %q up: %v", n.BridgeName, err)
+	}
+
 	return &current.Interface{
 		Name: br.Attrs().Name,
 		Mac:  br.Attrs().HardwareAddr.String(),
