@@ -117,11 +117,11 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 
 // addPort adds port to a bridge, also adding the container ID
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, containerID string) error {
+func addPort(bridgeName, port, ifname string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
 		"--", "set", "port", port,
-		fmt.Sprintf("external-ids:containerid=%s", containerID),
+		fmt.Sprintf("external-ids:ifname=%s", ifname),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -170,7 +170,7 @@ func getPortByContainerID(bridge, containerID string) (string, error) {
 	}
 
 	if len(dbData.data) == 0 {
-		return "", fmt.Errorf("OVS port with container ID %q was not found", containerID)
+		return "", fmt.Errorf("OVS port with container ID %q was not found, OVS DB data: %v", containerID, dbData.data)
 	}
 
 	portName := dbData.data[0][0]
@@ -338,7 +338,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.ContainerID)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.IfName)
 	if err != nil {
 		return err
 	}
