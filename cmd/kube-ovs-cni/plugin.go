@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -117,11 +118,11 @@ func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
 
 // addPort adds port to a bridge, also adding the container ID
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, ifname string) error {
+func addPort(bridgeName, port, netNS string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
 		"--", "set", "port", port,
-		fmt.Sprintf("external-ids:ifname=%s", ifname),
+		fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -147,19 +148,19 @@ func delPort(bridge, port string) error {
 	return nil
 }
 
-// getPortByContainerID finds the OVS port name by container ID
+// getPortByNetNS finds the OVS port name by network namespace
 // TODO: CNI delete can be called multiple times so this method will often
 // return errors even though the port was successfully deleted.
-func getPortByContainerID(bridge, containerID string) (string, error) {
+func getPortByNetNS(bridge, netNS string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
-		"port", fmt.Sprintf("external-ids:containerid=%s", containerID),
+		"port", fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
 	}
 
 	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to get OVS port with container ID %q from bridge %q, err: %v",
-			containerID, bridge, err)
+			netNS, bridge, err)
 	}
 
 	dbData := struct {
@@ -170,11 +171,17 @@ func getPortByContainerID(bridge, containerID string) (string, error) {
 	}
 
 	if len(dbData.data) == 0 {
-		return "", fmt.Errorf("OVS port with container ID %q was not found, OVS DB data: %v", containerID, dbData.data)
+		return "", fmt.Errorf("OVS port with network namespace %q was not found, OVS DB data: %v", netNS, dbData.data)
 	}
 
 	portName := dbData.data[0][0]
 	return portName, nil
+}
+
+// normalizedNetNS takes the NetNS (typically a path to a network namespace) and normalizes it
+// so it can be added to the OVS Port DB.
+func normalizedNetNS(netns string) string {
+	return strings.Replace(netns, "/", "", -1)
 }
 
 func setupVeth(netns ns.NetNS, ifName string) (*current.Interface, *current.Interface, error) {
@@ -338,7 +345,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.IfName)
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns)
 	if err != nil {
 		return err
 	}
@@ -486,7 +493,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortByContainerID(netConf.BridgeName, args.ContainerID)
+	portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
 	if err != nil {
 		return err
 	}
