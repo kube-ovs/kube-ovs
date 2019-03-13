@@ -493,14 +493,18 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
-	if err != nil {
-		return err
-	}
+	// attempt to deleted the associated port for the network namespace if it exists
+	// otherwise skip assuming this port it was already deleted it
+	if args.Netns != "" {
+		portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
+		if err != nil {
+			return err
+		}
 
-	err = delPort(netConf.BridgeName, portName)
-	if err != nil {
-		return err
+		err = delPort(netConf.BridgeName, portName)
+		if err != nil {
+			return err
+		}
 	}
 
 	if netConf.IPAM.Type != "" {
