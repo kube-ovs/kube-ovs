@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"syscall"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -338,6 +339,15 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	hostLink, err := netlink.LinkByName(hostInterface.Name)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(hostLink); err != nil {
+		return err
+	}
+
 	result := &current.Result{CNIVersion: cniVersion, Interfaces: []*current.Interface{bridge, hostInterface, containerInterface}}
 
 	if netConf.IPAM.Type != "" {
@@ -419,11 +429,16 @@ func cmdAdd(args *skel.CmdArgs) error {
 						firstV4Addr = gw.IP
 					}
 
-					// TODO: do we need this still?
-					// err = ensureBridgeAddr(br, gws.family, &gw, n.ForceAddress)
-					// if err != nil {
-					// 	return fmt.Errorf("failed to set bridge addr: %v", err)
-					// }
+					br, err := bridgeByName(netConf.BridgeName)
+					if err != nil {
+						return fmt.Errorf("failed to get bridge link: %v", err)
+					}
+
+					// TODO: configure force address here
+					err = ensureBridgeAddr(br, gws.family, &gw, true)
+					if err != nil {
+						return fmt.Errorf("failed to set bridge addr: %v", err)
+					}
 				}
 
 				if gws.gws != nil {
@@ -511,6 +526,59 @@ func cmdDel(args *skel.CmdArgs) error {
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+func ensureBridgeAddr(br netlink.Link, family int, ipn *net.IPNet, forceAddress bool) error {
+	addrs, err := netlink.AddrList(br, family)
+	if err != nil && err != syscall.ENOENT {
+		return fmt.Errorf("could not get list of IP addresses: %v", err)
+	}
+
+	ipnStr := ipn.String()
+	for _, a := range addrs {
+
+		// string comp is actually easiest for doing IPNet comps
+		if a.IPNet.String() == ipnStr {
+			return nil
+		}
+
+		// Multiple IPv6 addresses are allowed on the bridge if the
+		// corresponding subnets do not overlap. For IPv4 or for
+		// overlapping IPv6 subnets, reconfigure the IP address if
+		// forceAddress is true, otherwise throw an error.
+		if family == netlink.FAMILY_V4 || a.IPNet.Contains(ipn.IP) || ipn.Contains(a.IPNet.IP) {
+			if forceAddress {
+				if err = deleteBridgeAddr(br, a.IPNet); err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("%q already has an IP address different from %v", br.Attrs().Name, ipnStr)
+			}
+		}
+	}
+
+	addr := &netlink.Addr{IPNet: ipn, Label: ""}
+	if err := netlink.AddrAdd(br, addr); err != nil {
+		return fmt.Errorf("could not add IP address to %q: %v", br.Attrs().Name, err)
+	}
+
+	// Set the bridge's MAC to itself. Otherwise, the bridge will take the
+	// lowest-numbered mac on the bridge, and will change as ifs churn
+	if err := netlink.LinkSetHardwareAddr(br, br.Attrs().HardwareAddr); err != nil {
+		return fmt.Errorf("could not set bridge's mac: %v", err)
+	}
+
+	return nil
+}
+
+func deleteBridgeAddr(br netlink.Link, ipn *net.IPNet) error {
+	addr := &netlink.Addr{IPNet: ipn, Label: ""}
+
+	if err := netlink.AddrDel(br, addr); err != nil {
+		return fmt.Errorf("could not remove IP address from %q: %v", br.Attrs().Name, err)
 	}
 
 	return nil
