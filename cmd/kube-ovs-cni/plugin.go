@@ -430,7 +430,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			}
 			return nil
 		}); err != nil {
-			return err
+			return fmt.Errorf("failed to configure container addresses: %v", err)
 		}
 
 		if netConf.IsGW {
