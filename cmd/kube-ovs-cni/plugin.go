@@ -171,6 +171,8 @@ func getPortByNetNS(bridge, netNS string) (string, error) {
 	}
 
 	if len(dbData.data) == 0 {
+		// TODO: might make more sense to not return an error here since
+		// CNI delete can be called multiple times.
 		return "", fmt.Errorf("OVS port with network namespace %q was not found, OVS DB data: %v", netNS, dbData.data)
 	}
 

@@ -28,10 +28,14 @@ import (
 
 const (
 	tableClassification  = 0
-	tableNetworkPolicies = 10
-	tableProxy           = 20
-	tableNAT             = 30
-	tableAudit           = 40
+	tableL3Rewrites      = 10
+	tableL3Forwarding    = 20
+	tableL2Rewrites      = 30
+	tableL2Forwarding    = 40
+	tableNetworkPolicies = 50
+	tableProxy           = 60
+	tableNAT             = 70
+	tableAudit           = 80
 )
 
 // flowsController implements the controllers.Controller interface
@@ -54,6 +58,10 @@ func (t *flowsController) Initialize() error {
 	// init all tables by adding output port to NORMAL at the lowest priority
 	baseFlows := []*ofp13.OfpFlowMod{
 		baseFlows(tableClassification),
+		baseFlows(tableL3Rewrites),
+		baseFlows(tableL3Forwarding),
+		baseFlows(tableL2Rewrites),
+		baseFlows(tableL2Forwarding),
 		baseFlows(tableNetworkPolicies),
 		baseFlows(tableProxy),
 		baseFlows(tableNAT),
