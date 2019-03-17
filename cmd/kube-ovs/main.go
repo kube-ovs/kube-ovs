@@ -50,8 +50,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Get the curret snode name. We're going to assume this was passed
-	// via an env var called NODE_NAME or the cli flag --node-name
+	// Get the current node's name. We're going to assume this was passed
+	// via an env var called NODE_NAME for now
 	nodeName := os.Getenv("NODE_NAME")
 	if nodeName == "" {
 		klog.Error("env variable NODE_NAME is required")

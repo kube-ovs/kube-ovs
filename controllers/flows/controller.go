@@ -51,7 +51,7 @@ func NewFlowsController(conn *net.TCPConn) controllers.Controller {
 }
 
 func (t *flowsController) Name() string {
-	return "table"
+	return "flows"
 }
 
 func (t *flowsController) Initialize() error {
