@@ -82,6 +82,8 @@ func (t *flowsController) HandleMessage(msg ofp13.OFMessage) error {
 	return nil
 }
 
+// baseFlows returns the FlowMod action to create the base set of flows
+// added by default to each kube-ovs table
 func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
 	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
 	instruction.Actions = append(instruction.Actions, ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
