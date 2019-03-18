@@ -51,16 +51,16 @@ func NewFlowsController() controllers.Controller {
 	return &flowsController{}
 }
 
-func (t *flowsController) Name() string {
+func (f *flowsController) Name() string {
 	return "flows"
 }
 
-func (t *flowsController) RegisterConnection(conn *net.TCPConn) {
-	t.conn = conn
+func (f *flowsController) RegisterConnection(conn *net.TCPConn) {
+	f.conn = conn
 }
 
-func (t *flowsController) Initialize() error {
-	if t.conn == nil {
+func (f *flowsController) Initialize() error {
+	if f.conn == nil {
 		return errors.New("controller must have a registered connection to the switch")
 	}
 
@@ -78,7 +78,7 @@ func (t *flowsController) Initialize() error {
 	}
 
 	for _, flow := range baseFlows {
-		_, err := t.conn.Write(flow.Serialize())
+		_, err := f.conn.Write(flow.Serialize())
 		if err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func (t *flowsController) Initialize() error {
 	return nil
 }
 
-func (t *flowsController) HandleMessage(msg ofp13.OFMessage) error {
+func (f *flowsController) HandleMessage(msg ofp13.OFMessage) error {
 	return nil
 }
 
@@ -101,11 +101,11 @@ func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
 		[]ofp13.OfpInstruction{instruction})
 }
 
-func (t *flowsController) OnAdd(obj interface{}) {
+func (f *flowsController) OnAdd(obj interface{}) {
 }
 
-func (t *flowsController) OnUpdate(oldObj, newObj interface{}) {
+func (f *flowsController) OnUpdate(oldObj, newObj interface{}) {
 }
 
-func (t *flowsController) OnDelete(obj interface{}) {
+func (f *flowsController) OnDelete(obj interface{}) {
 }
