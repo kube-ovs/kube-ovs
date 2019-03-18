@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/kube-ovs/kube-ovs/controllers"
+
 	"k8s.io/klog"
 )
 
@@ -32,7 +34,8 @@ const (
 )
 
 type Server struct {
-	listener *net.TCPListener
+	listener    *net.TCPListener
+	controllers []controllers.Controller
 }
 
 func NewServer() (*Server, error) {
@@ -46,7 +49,14 @@ func NewServer() (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{listener: listener}, nil
+	return &Server{
+		listener:    listener,
+		controllers: []controllers.Controller{},
+	}, nil
+}
+
+func (s *Server) RegisterControllers(ofControllers ...controllers.Controller) {
+	s.controllers = append(s.controllers, ofControllers...)
 }
 
 func (s *Server) Serve() {
@@ -62,7 +72,9 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) handleConn(conn *net.TCPConn) {
-	ofconn := NewOFConn(conn)
+	ofconn := NewOFConn(conn, s.controllers)
+
+	ofconn.RegisterConnections()
 	err := ofconn.InitializeControllers()
 	if err != nil {
 		klog.Errorf("error initializing controllers: %v", err)

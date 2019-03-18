@@ -20,6 +20,7 @@ under the License.
 package echo
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -35,15 +36,23 @@ type echoController struct {
 
 var _ controllers.Controller = &echoController{}
 
-func NewEchoController(conn *net.TCPConn) controllers.Controller {
-	return &echoController{conn}
+func NewEchoController() controllers.Controller {
+	return &echoController{}
 }
 
 func (e *echoController) Name() string {
 	return "echo"
 }
 
+func (e *echoController) RegisterConnection(conn *net.TCPConn) {
+	e.conn = conn
+}
+
 func (e *echoController) Initialize() error {
+	if e.conn == nil {
+		return errors.New("controller must have a registered connection to the switch")
+	}
+
 	// send initial echo request
 	echoReq := ofp13.NewOfpEchoRequest()
 	_, err := e.conn.Write(echoReq.Serialize())
@@ -73,4 +82,13 @@ func (e *echoController) HandleMessage(msg ofp13.OFMessage) error {
 	}
 
 	return nil
+}
+
+func (e *echoController) OnAdd(obj interface{}) {
+}
+
+func (e *echoController) OnUpdate(oldObj, newObj interface{}) {
+}
+
+func (e *echoController) OnDelete(obj interface{}) {
 }

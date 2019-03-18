@@ -24,6 +24,10 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/kube-ovs/kube-ovs/controllers"
+	"github.com/kube-ovs/kube-ovs/controllers/echo"
+	"github.com/kube-ovs/kube-ovs/controllers/flows"
+	"github.com/kube-ovs/kube-ovs/controllers/hello"
 	"github.com/kube-ovs/kube-ovs/openflow"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,6 +85,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	openFlowControllers := []controllers.Controller{
+		hello.NewHelloController(),
+		echo.NewEchoController(),
+		flows.NewFlowsController(),
+	}
+
+	server.RegisterControllers(openFlowControllers...)
 	server.Serve()
 }
 

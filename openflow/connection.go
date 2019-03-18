@@ -27,9 +27,6 @@ import (
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/controllers"
-	"github.com/kube-ovs/kube-ovs/controllers/echo"
-	"github.com/kube-ovs/kube-ovs/controllers/flows"
-	"github.com/kube-ovs/kube-ovs/controllers/hello"
 	"github.com/kube-ovs/kube-ovs/openflow/protocol"
 
 	"k8s.io/klog"
@@ -43,22 +40,16 @@ type OFConn struct {
 	datapathID  uint64
 }
 
-func NewOFConn(conn *net.TCPConn) *OFConn {
+func NewOFConn(conn *net.TCPConn, controllers []controllers.Controller) *OFConn {
 	return &OFConn{
 		conn:        conn,
-		controllers: DefaultControllers(conn),
+		controllers: controllers,
 	}
 }
 
-func DefaultControllers(conn *net.TCPConn) []controllers.Controller {
-	helloController := hello.NewHelloController(conn)
-	echoController := echo.NewEchoController(conn)
-	flowsController := flows.NewFlowsController(conn)
-
-	return []controllers.Controller{
-		helloController,
-		echoController,
-		flowsController,
+func (of *OFConn) RegisterConnections() {
+	for _, controller := range of.controllers {
+		controller.RegisterConnection(of.conn)
 	}
 }
 

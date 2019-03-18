@@ -20,6 +20,7 @@ under the License.
 package flows
 
 import (
+	"errors"
 	"net"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
@@ -46,15 +47,23 @@ type flowsController struct {
 
 var _ controllers.Controller = &flowsController{}
 
-func NewFlowsController(conn *net.TCPConn) controllers.Controller {
-	return &flowsController{conn}
+func NewFlowsController() controllers.Controller {
+	return &flowsController{}
 }
 
 func (t *flowsController) Name() string {
 	return "flows"
 }
 
+func (t *flowsController) RegisterConnection(conn *net.TCPConn) {
+	t.conn = conn
+}
+
 func (t *flowsController) Initialize() error {
+	if t.conn == nil {
+		return errors.New("controller must have a registered connection to the switch")
+	}
+
 	// init all tables by adding output port to NORMAL at the lowest priority
 	baseFlows := []*ofp13.OfpFlowMod{
 		baseFlows(tableClassification),
@@ -90,4 +99,13 @@ func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
 
 	return ofp13.NewOfpFlowModAdd(0, 0, tableID, 0, 0, ofp13.NewOfpMatch(),
 		[]ofp13.OfpInstruction{instruction})
+}
+
+func (t *flowsController) OnAdd(obj interface{}) {
+}
+
+func (t *flowsController) OnUpdate(oldObj, newObj interface{}) {
+}
+
+func (t *flowsController) OnDelete(obj interface{}) {
 }

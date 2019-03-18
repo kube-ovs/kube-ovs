@@ -20,6 +20,7 @@ under the License.
 package hello
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -37,15 +38,23 @@ type helloController struct {
 
 var _ controllers.Controller = &helloController{}
 
-func NewHelloController(conn *net.TCPConn) controllers.Controller {
-	return &helloController{conn}
+func NewHelloController() controllers.Controller {
+	return &helloController{}
 }
 
 func (h *helloController) Name() string {
 	return "hello"
 }
 
+func (h *helloController) RegisterConnection(conn *net.TCPConn) {
+	h.conn = conn
+}
+
 func (h *helloController) Initialize() error {
+	if h.conn == nil {
+		return errors.New("controller must have a registered connection to the switch")
+	}
+
 	// send initial hello which is required to establish a propoer connection
 	// with an open flow switch.
 	hello := ofp13.NewOfpHello()
@@ -68,4 +77,13 @@ func (h *helloController) HandleMessage(msg ofp13.OFMessage) error {
 	featureReq := ofp13.NewOfpFeaturesRequest()
 	_, err := h.conn.Write(featureReq.Serialize())
 	return err
+}
+
+func (h *helloController) OnAdd(obj interface{}) {
+}
+
+func (h *helloController) OnUpdate(oldObj, newObj interface{}) {
+}
+
+func (h *helloController) OnDelete(obj interface{}) {
 }

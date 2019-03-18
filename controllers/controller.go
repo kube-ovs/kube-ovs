@@ -20,13 +20,19 @@ under the License.
 package controllers
 
 import (
+	"net"
+
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
+	"k8s.io/client-go/tools/cache"
 )
 
 // Controller is the interface that should be implemented by all
 // kube-ovs controllers
 type Controller interface {
 	Name() string
+	RegisterConnection(conn *net.TCPConn)
 	Initialize() error
 	HandleMessage(msg ofp13.OFMessage) error
+
+	cache.ResourceEventHandler
 }
