@@ -41,8 +41,9 @@ import (
 )
 
 const (
-	cniConfigPath = "/etc/cni/net.d/10-kube-ovs.json"
-	bridgeName    = "kube-ovs0"
+	cniConfigPath           = "/etc/cni/net.d/10-kube-ovs.json"
+	bridgeName              = "kube-ovs0"
+	defaultControllerTarget = "tcp:127.0.0.1:6653"
 )
 
 func main() {
@@ -87,7 +88,7 @@ func main() {
 
 	err = setupBridgeIfNotExists()
 	if err != nil {
-		klog.Errorf("failed to setup OVS  bridge: %v", err)
+		klog.Errorf("failed to setup OVS bridge: %v", err)
 		os.Exit(1)
 	}
 
@@ -106,6 +107,11 @@ func main() {
 	if err := netlink.AddrAdd(br, addr); err != nil {
 		klog.Errorf("could not add addr %q to bridge %q, err: %v",
 			podCIDR, bridgeName, err)
+		os.Exit(1)
+	}
+
+	if err := setControllerTarget(); err != nil {
+		klog.Errorf("failed to setup controller: %v", err)
 		os.Exit(1)
 	}
 
@@ -178,6 +184,20 @@ func setupBridgeIfNotExists() error {
 
 	if err := netlink.LinkSetUp(br); err != nil {
 		return fmt.Errorf("failed to bring bridge %q up: %v", bridgeName, err)
+	}
+
+	return nil
+}
+
+func setControllerTarget() error {
+	command := []string{
+		"set-controller", bridgeName, defaultControllerTarget,
+	}
+
+	out, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set controller target for bridge %q, err: %v, out: %q",
+			bridgeName, err, string(out))
 	}
 
 	return nil
