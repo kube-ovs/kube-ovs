@@ -22,9 +22,11 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
 	"github.com/kube-ovs/kube-ovs/controllers/flows"
@@ -76,7 +78,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = installCNIConf(curNode.Spec.PodCIDR)
+	podCIDR := curNode.Spec.PodCIDR
+	err = installCNIConf(podCIDR)
 	if err != nil {
 		klog.Errorf("failed to install CNI: %v", err)
 		os.Exit(1)
@@ -85,6 +88,24 @@ func main() {
 	err = setupBridgeIfNotExists()
 	if err != nil {
 		klog.Errorf("failed to setup OVS  bridge: %v", err)
+		os.Exit(1)
+	}
+
+	br, err := netlink.LinkByName(bridgeName)
+	if err != nil {
+		klog.Errorf("failed to get bridge %q, err: %v", bridgeName, err)
+		os.Exit(1)
+	}
+
+	addr, err := netlinkAddrForCIDR(podCIDR)
+	if err != nil {
+		klog.Errorf("failed to get netlink addr for CIDR %q, err: %v", podCIDR, err)
+		os.Exit(1)
+	}
+
+	if err := netlink.AddrAdd(br, addr); err != nil {
+		klog.Errorf("could not add addr %q to bridge %q, err: %v",
+			podCIDR, bridgeName, err)
 		os.Exit(1)
 	}
 
@@ -102,6 +123,24 @@ func main() {
 
 	server.RegisterControllers(openFlowControllers...)
 	server.Serve()
+}
+
+func netlinkAddrForCIDR(podCIDR string) (*netlink.Addr, error) {
+	_, ipn, err := net.ParseCIDR(podCIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	nid := ipn.IP.Mask(ipn.Mask)
+	gw := ip.NextIP(nid)
+
+	return &netlink.Addr{
+		IPNet: &net.IPNet{
+			IP:   gw,
+			Mask: ipn.Mask,
+		},
+		Label: "",
+	}, nil
 }
 
 // installCNIConf adds the CNI config file given the pod cidr of the node
