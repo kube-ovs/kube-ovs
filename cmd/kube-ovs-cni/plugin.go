@@ -91,23 +91,10 @@ func bridgeByName(name string) (netlink.Link, error) {
 	return br, nil
 }
 
-func setupBridgeIfNotExists(n *NetConf) (*current.Interface, error) {
-	command := []string{
-		"--may-exist", "add-br", n.BridgeName,
-	}
-
-	_, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+func getBridgeInterface() (*current.Interface, error) {
+	br, err := bridgeByName(defaultBridgeName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup OVS bridge %q, err: %v", n.BridgeName, err)
-	}
-
-	br, err := bridgeByName(n.BridgeName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch bridge %q: %v", n.BridgeName, err)
-	}
-
-	if err := netlink.LinkSetUp(br); err != nil {
-		return nil, fmt.Errorf("failed to bring bridge %q up: %v", n.BridgeName, err)
+		return nil, fmt.Errorf("failed to fetch bridge %q: %v", defaultBridgeName, err)
 	}
 
 	return &current.Interface{
@@ -330,8 +317,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	// hashing function to get containerID -> OVS port?
-	bridge, err := setupBridgeIfNotExists(netConf)
+	bridge, err := getBridgeInterface()
 	if err != nil {
 		return fmt.Errorf("failed to setup bridge: %v", err)
 	}
