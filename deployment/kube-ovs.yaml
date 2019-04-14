@@ -1,0 +1,117 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-ovs
+  namespace: kube-system
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-ovs
+rules:
+  - apiGroups:
+    - ""
+    resources:
+      - services
+      - nodes
+      - endpoints
+    verbs:
+      - list
+      - get
+      - watch
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-ovs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-ovs
+subjects:
+- kind: ServiceAccount
+  name: kube-ovs
+  namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: kube-ovs
+  name: kube-ovs
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: kube-ovs
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-ovs
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      serviceAccountName: kube-ovs
+      containers:
+      - name: kube-ovs
+        image: andrewsykim/kube-ovs:latest
+        imagePullPolicy: Always
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /etc/cni/net.d
+            name: cni-conf
+          - mountPath: /etc/openvswitch
+            name: ovs-etc
+          - mountPath: /var/run/openvswitch
+            name: ovs-run
+          - mountPath: /var/log/openvswitch
+            name: ovs-log
+      initContainers:
+      - name: install-cni
+        image: andrewsykim/kube-ovs:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e -x;
+          cp /bin/kube-ovs-cni /opt/cni/bin/
+        volumeMounts:
+        - mountPath: /opt/cni/bin
+          name: cni-bin-dir
+      hostNetwork: true
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      - effect: NoSchedule
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+      volumes:
+      - name: cni-bin-dir
+        hostPath:
+          path: /opt/cni/bin
+      - name: cni-conf
+        hostPath:
+          path: /etc/cni/net.d
+      - name: ovs-run
+        hostPath:
+          path: /var/run/openvswitch
+      - name: ovs-etc
+        hostPath:
+          path: /etc/openvswitch
+      - name: ovs-log
+        hostPath:
+          path: /var/log/openvswitch
+
