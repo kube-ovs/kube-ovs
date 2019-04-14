@@ -55,7 +55,7 @@ func (h *helloController) Initialize() error {
 		return errors.New("controller must have a registered connection to the switch")
 	}
 
-	// send initial hello which is required to establish a propoer connection
+	// send initial hello which is required to establish a proper connection
 	// with an open flow switch.
 	hello := ofp13.NewOfpHello()
 	_, err := h.conn.Write(hello.Serialize())

@@ -57,6 +57,10 @@ func NewServer() (*Server, error) {
 
 func (s *Server) RegisterControllers(ofControllers ...controllers.Controller) {
 	s.controllers = append(s.controllers, ofControllers...)
+	// TODO: register connection to each controller
+	// this is the channel to send write messages to connHandler
+	// which is then responsible for dispatching the message to a
+	// valid open flow connection
 }
 
 func (s *Server) Serve() {
