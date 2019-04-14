@@ -126,9 +126,10 @@ func setupBridgeIfNotExists() error {
 		"--may-exist", "add-br", bridgeName,
 	}
 
-	_, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	out, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to setup OVS bridge %q, err: %v", bridgeName, err)
+		return fmt.Errorf("failed to setup OVS bridge %q, err: %v, output: %q",
+			bridgeName, err, string(out))
 	}
 
 	br, err := netlink.LinkByName(bridgeName)
