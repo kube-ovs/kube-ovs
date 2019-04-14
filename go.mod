@@ -6,7 +6,7 @@ require (
 	github.com/Kmotiko/gofc v0.0.0-20180701115437-90dd328271b4
 	github.com/containernetworking/cni v0.6.0
 	github.com/containernetworking/plugins v0.7.4
-	github.com/coreos/go-iptables v0.4.0 // indirect
+	github.com/coreos/go-iptables v0.4.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/digitalocean/go-openvswitch v0.0.0-20190114182813-d4914faa77e0 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect

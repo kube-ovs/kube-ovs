@@ -27,6 +27,7 @@ import (
 	"os/exec"
 
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/coreos/go-iptables/iptables"
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
 	"github.com/kube-ovs/kube-ovs/controllers/flows"
@@ -115,6 +116,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := setupBridgeForwarding(); err != nil {
+		klog.Errorf("failed to setup bridge forwarding: %v", err)
+		os.Exit(1)
+	}
+
 	server, err := openflow.NewServer()
 	if err != nil {
 		klog.Errorf("error starting open flow server: %v", err)
@@ -198,6 +204,39 @@ func setControllerTarget() error {
 	if err != nil {
 		return fmt.Errorf("failed to set controller target for bridge %q, err: %v, out: %q",
 			bridgeName, err, string(out))
+	}
+
+	return nil
+}
+
+func setupBridgeForwarding() error {
+	ipt, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
+	if err != nil {
+		return err
+	}
+
+	rules := []string{"-o", bridgeName, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"}
+	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	if err != nil {
+		return err
+	}
+
+	rules = []string{"-o", bridgeName, "-j", "DOCKER"}
+	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	if err != nil {
+		return err
+	}
+
+	rules = []string{"-i", bridgeName, "!", "-o", bridgeName, "-j", "ACCEPT"}
+	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	if err != nil {
+		return err
+	}
+
+	rules = []string{"-i", bridgeName, "-o", bridgeName, "-j", "ACCEPT"}
+	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	if err != nil {
+		return err
 	}
 
 	return nil
