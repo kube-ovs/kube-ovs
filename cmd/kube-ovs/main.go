@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/kube-ovs/kube-ovs/controllers/echo"
 	"github.com/kube-ovs/kube-ovs/controllers/flows"
 	"github.com/kube-ovs/kube-ovs/controllers/hello"
 	"github.com/kube-ovs/kube-ovs/openflow"
+	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +40,7 @@ import (
 
 const (
 	cniConfigPath = "/etc/cni/net.d/10-kube-ovs.json"
+	bridgeName    = "kube-ovs0"
 )
 
 func main() {
@@ -79,6 +82,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	err = setupBridgeIfNotExists()
+	if err != nil {
+		klog.Errorf("failed to setup OVS  bridge: %v", err)
+		os.Exit(1)
+	}
+
 	server, err := openflow.NewServer()
 	if err != nil {
 		klog.Errorf("error starting open flow server: %v", err)
@@ -105,9 +114,31 @@ func installCNIConf(podCIDR string) error {
 	"isDefaultGateway": true,
 	"ipam": {
 		"type": "host-local",
-		"subnet": "%s",
+		"subnet": "%s"
 	}
 }`, podCIDR)
 
 	return ioutil.WriteFile(cniConfigPath, []byte(conf), 0644)
+}
+
+func setupBridgeIfNotExists() error {
+	command := []string{
+		"--may-exist", "add-br", bridgeName,
+	}
+
+	_, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to setup OVS bridge %q, err: %v", bridgeName, err)
+	}
+
+	br, err := netlink.LinkByName(bridgeName)
+	if err != nil {
+		return fmt.Errorf("could not lookup %q: %v", bridgeName, err)
+	}
+
+	if err := netlink.LinkSetUp(br); err != nil {
+		return fmt.Errorf("failed to bring bridge %q up: %v", bridgeName, err)
+	}
+
+	return nil
 }
