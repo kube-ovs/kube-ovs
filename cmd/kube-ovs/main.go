@@ -104,7 +104,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := netlink.AddrAdd(br, addr); err != nil {
+	if err := netlink.AddrReplace(br, addr); err != nil {
 		klog.Errorf("could not add addr %q to bridge %q, err: %v",
 			podCIDR, bridgeName, err)
 		os.Exit(1)
