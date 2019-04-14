@@ -1,5 +1,8 @@
-FROM alpine:3.8
+FROM ubuntu:16.04
 
-ADD kube-ovs /usr/local/bin/
+RUN apt update && apt install -y openvswitch-switch
 
-ENTRYPOINT ["/usr/local/bin/kube-ovs"]
+ADD kube-ovs /bin
+ADD kube-ovs-cni /bin
+
+CMD ["/bin/kube-ovs"]
