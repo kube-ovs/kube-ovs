@@ -45,6 +45,9 @@ const (
 	cniConfigPath           = "/etc/cni/net.d/10-kube-ovs.json"
 	bridgeName              = "kube-ovs0"
 	defaultControllerTarget = "tcp:127.0.0.1:6653"
+
+	defaultClusterCIDR = "100.96.0.0/11"
+	defaultServiceCIDR = "100.64.0.0/13"
 )
 
 func main() {
@@ -116,7 +119,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := setupBridgeForwarding(); err != nil {
+	if err := setupBridgeForwarding(podCIDR); err != nil {
 		klog.Errorf("failed to setup bridge forwarding: %v", err)
 		os.Exit(1)
 	}
@@ -209,32 +212,38 @@ func setControllerTarget() error {
 	return nil
 }
 
-func setupBridgeForwarding() error {
+func setupBridgeForwarding(podCIDR string) error {
 	ipt, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
 	if err != nil {
 		return err
 	}
 
-	rules := []string{"-o", bridgeName, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"}
+	rules := []string{"-o", bridgeName, "-j", "ACCEPT"}
 	err = ipt.AppendUnique("filter", "FORWARD", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"-o", bridgeName, "-j", "DOCKER"}
+	rules = []string{"-i", bridgeName, "-j", "ACCEPT"}
 	err = ipt.AppendUnique("filter", "FORWARD", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"-i", bridgeName, "!", "-o", bridgeName, "-j", "ACCEPT"}
-	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	rules = []string{"-s", podCIDR, "!", "-o", bridgeName, "-j", "MASQUERADE"}
+	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"-i", bridgeName, "-o", bridgeName, "-j", "ACCEPT"}
-	err = ipt.AppendUnique("filter", "FORWARD", rules...)
+	rules = []string{"!", "-d", defaultClusterCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from cluster CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
+	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
+	if err != nil {
+		return err
+	}
+
+	rules = []string{"!", "-d", defaultServiceCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from service CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
+	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err
 	}
