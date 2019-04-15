@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/coreos/go-iptables/iptables"
@@ -116,6 +117,11 @@ func main() {
 
 	if err := setControllerTarget(); err != nil {
 		klog.Errorf("failed to setup controller: %v", err)
+		os.Exit(1)
+	}
+
+	if err := setupModulesAndSysctls(); err != nil {
+		klog.Errorf("failed to setup sysctls: %v", err)
 		os.Exit(1)
 	}
 
@@ -246,6 +252,18 @@ func setupBridgeForwarding(podCIDR string) error {
 	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func setupModulesAndSysctls() error {
+	if out, err := exec.Command("modprobe", "br_netfilter").CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to enable br_netfilter module, err: %v, out: %q", err, string(out))
+	}
+
+	if err := ioutil.WriteFile("/proc/sys/net/bridge/bridge-nf-call-iptables", []byte(strconv.Itoa(1)), 0640); err != nil {
+		return fmt.Errorf("failed to set /proc/sys/net/bridge/bridge-nf-call-iptables, err: %v", err)
 	}
 
 	return nil

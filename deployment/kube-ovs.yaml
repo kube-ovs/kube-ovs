@@ -76,6 +76,8 @@ spec:
             name: ovs-run
           - mountPath: /var/log/openvswitch
             name: ovs-log
+          - mountPath: /lib/modules
+            name: lib-modules
       initContainers:
       - name: install-cni
         image: andrewsykim/kube-ovs:latest
@@ -114,4 +116,7 @@ spec:
       - name: ovs-log
         hostPath:
           path: /var/log/openvswitch
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
 
