@@ -47,7 +47,9 @@ const (
 	bridgeName              = "kube-ovs0"
 	defaultControllerTarget = "tcp:127.0.0.1:6653"
 
+	// TODO: set this via a CLI flag
 	defaultClusterCIDR = "100.96.0.0/11"
+	// TODO: set this via a CLI flag
 	defaultServiceCIDR = "100.64.0.0/13"
 )
 
