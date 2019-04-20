@@ -30,13 +30,10 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/kube-ovs/kube-ovs/controllers"
-	"github.com/kube-ovs/kube-ovs/controllers/echo"
-	"github.com/kube-ovs/kube-ovs/controllers/flows"
-	"github.com/kube-ovs/kube-ovs/controllers/hello"
-	"github.com/kube-ovs/kube-ovs/openflow"
 	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
@@ -132,20 +129,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	server, err := openflow.NewServer()
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
+
+	informerFactory.WaitForCacheSync(nil)
+	informerFactory.Start(nil)
+
+	connectionManager, err := controllers.NewOFConnect()
 	if err != nil {
-		klog.Errorf("error starting open flow server: %v", err)
+		klog.Errorf("error starting open flow connection manager: %v", err)
 		os.Exit(1)
 	}
 
-	openFlowControllers := []controllers.Controller{
-		hello.NewHelloController(),
-		echo.NewEchoController(),
-		flows.NewFlowsController(),
+	c := controllers.NewController(connectionManager)
+	err = c.Initialize()
+	if err != nil {
+		klog.Errorf("error initializing controller: %v", err)
+		os.Exit(1)
 	}
 
-	server.RegisterControllers(openFlowControllers...)
-	server.Serve()
+	nodeInformer.AddEventHandler(c.VxLANHandler())
+
+	// TODO: add stopCh based on signals
+	go connectionManager.ProcessQueue()
+	go connectionManager.Serve()
+	c.Run()
 }
 
 func netlinkAddrForCIDR(podCIDR string) (*netlink.Addr, error) {

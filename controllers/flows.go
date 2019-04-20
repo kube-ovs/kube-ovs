@@ -17,77 +17,43 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package flows
+package controllers
 
 import (
-	"errors"
-	"net"
-
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
-	"github.com/kube-ovs/kube-ovs/controllers"
 )
 
 const (
-	tableClassification  = 0
-	tableL3Rewrites      = 10
-	tableL3Forwarding    = 20
-	tableL2Rewrites      = 30
-	tableL2Forwarding    = 40
-	tableNetworkPolicies = 50
-	tableProxy           = 60
-	tableNAT             = 70
-	tableAudit           = 80
+	tableClassification         = 0
+	tableL3Rewrites             = 10
+	tableL3Forwarding           = 20
+	tableL2Rewrites             = 30
+	tableL2Forwarding           = 40
+	tableNetworkPoliciesIngress = 50
+	tableNetworkPoliciesEgress  = 60
+	tableProxy                  = 70
+	tableNAT                    = 80
+	tableAudit                  = 90
 )
 
-// flowsController implements the controllers.Controller interface
-// flowsController is responsible for creating flows on the switch
-type flowsController struct {
-	conn *net.TCPConn
-}
-
-var _ controllers.Controller = &flowsController{}
-
-func NewFlowsController() controllers.Controller {
-	return &flowsController{}
-}
-
-func (f *flowsController) Name() string {
-	return "flows"
-}
-
-func (f *flowsController) RegisterConnection(conn *net.TCPConn) {
-	f.conn = conn
-}
-
-func (f *flowsController) Initialize() error {
-	if f.conn == nil {
-		return errors.New("controller must have a registered connection to the switch")
-	}
-
-	// init all tables by adding output port to NORMAL at the lowest priority
+func (c *controller) setupBaseFlows() error {
 	baseFlows := []*ofp13.OfpFlowMod{
 		baseFlows(tableClassification),
 		baseFlows(tableL3Rewrites),
 		baseFlows(tableL3Forwarding),
 		baseFlows(tableL2Rewrites),
 		baseFlows(tableL2Forwarding),
-		baseFlows(tableNetworkPolicies),
+		baseFlows(tableNetworkPoliciesIngress),
+		baseFlows(tableNetworkPoliciesEgress),
 		baseFlows(tableProxy),
 		baseFlows(tableNAT),
 		baseFlows(tableAudit),
 	}
 
 	for _, flow := range baseFlows {
-		_, err := f.conn.Write(flow.Serialize())
-		if err != nil {
-			return err
-		}
+		c.connManager.Send(flow)
 	}
 
-	return nil
-}
-
-func (f *flowsController) HandleMessage(msg ofp13.OFMessage) error {
 	return nil
 }
 
@@ -99,13 +65,4 @@ func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
 
 	return ofp13.NewOfpFlowModAdd(0, 0, tableID, 0, 0, ofp13.NewOfpMatch(),
 		[]ofp13.OfpInstruction{instruction})
-}
-
-func (f *flowsController) OnAdd(obj interface{}) {
-}
-
-func (f *flowsController) OnUpdate(oldObj, newObj interface{}) {
-}
-
-func (f *flowsController) OnDelete(obj interface{}) {
 }

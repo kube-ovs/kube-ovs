@@ -17,43 +17,20 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package services
+package controllers
 
 import (
 	"net"
-
-	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
-	"github.com/kube-ovs/kube-ovs/controllers"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
-type servicesController struct {
+type serviceHandler struct {
 	conn *net.TCPConn
 }
 
-func NewServicesController() controllers.Controller {
-	return &servicesController{}
-}
-
-func (s *servicesController) Name() string {
-	return "services"
-}
-
-func (s *servicesController) RegisterConnection(conn *net.TCPConn) {
-	s.conn = conn
-}
-
-func (s *servicesController) Initialize() error {
-	return nil
-}
-
-func (s *servicesController) HandleMessage(msg ofp13.OFMessage) error {
-	return nil
-}
-
-func (s *servicesController) OnAdd(obj interface{}) {
+func (s *serviceHandler) OnAdd(obj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if s.conn == nil {
 		return
@@ -67,7 +44,7 @@ func (s *servicesController) OnAdd(obj interface{}) {
 	klog.Infof("received OnAdd event for service %q", svc.Name)
 }
 
-func (s *servicesController) OnUpdate(oldObj, newObj interface{}) {
+func (s *serviceHandler) OnUpdate(oldObj, newObj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if s.conn == nil {
 		return
@@ -81,7 +58,7 @@ func (s *servicesController) OnUpdate(oldObj, newObj interface{}) {
 	klog.Infof("received OnUpdate event for service %q", svc.Name)
 }
 
-func (s *servicesController) OnDelete(obj interface{}) {
+func (s *serviceHandler) OnDelete(obj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if s.conn == nil {
 		return

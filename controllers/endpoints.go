@@ -17,43 +17,20 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package endpoints
+package controllers
 
 import (
 	"net"
-
-	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
-	"github.com/kube-ovs/kube-ovs/controllers"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
-type endpointsController struct {
+type endpointsHandler struct {
 	conn *net.TCPConn
 }
 
-func NewEndpointsController() controllers.Controller {
-	return &endpointsController{}
-}
-
-func (e *endpointsController) Name() string {
-	return "endpoints"
-}
-
-func (e *endpointsController) RegisterConnection(conn *net.TCPConn) {
-	e.conn = conn
-}
-
-func (e *endpointsController) Initialize() error {
-	return nil
-}
-
-func (e *endpointsController) HandleMessage(msg ofp13.OFMessage) error {
-	return nil
-}
-
-func (e *endpointsController) OnAdd(obj interface{}) {
+func (e *endpointsHandler) OnAdd(obj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if e.conn == nil {
 		return
@@ -67,7 +44,7 @@ func (e *endpointsController) OnAdd(obj interface{}) {
 	klog.Infof("received OnAdd event for endpoint %q", ep.Name)
 }
 
-func (e *endpointsController) OnUpdate(oldObj, newObj interface{}) {
+func (e *endpointsHandler) OnUpdate(oldObj, newObj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if e.conn == nil {
 		return
@@ -81,7 +58,7 @@ func (e *endpointsController) OnUpdate(oldObj, newObj interface{}) {
 	klog.Infof("received OnUpdate event for endpoint %q", ep.Name)
 }
 
-func (e *endpointsController) OnDelete(obj interface{}) {
+func (e *endpointsHandler) OnDelete(obj interface{}) {
 	// ignore this event if there are no open flow connections established
 	if e.conn == nil {
 		return
