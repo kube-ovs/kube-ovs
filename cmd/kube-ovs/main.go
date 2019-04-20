@@ -142,6 +142,7 @@ func main() {
 	}
 
 	c := controllers.NewController(connectionManager)
+
 	err = c.Initialize()
 	if err != nil {
 		klog.Errorf("error initializing controller: %v", err)

@@ -26,18 +26,18 @@ import (
 	"k8s.io/klog"
 )
 
-type ConnectionManager interface {
+type connectionManager interface {
 	Receive() ofp13.OFMessage
 	Send(msg ofp13.OFMessage)
 }
 
 type controller struct {
 	datapathID   uint64
-	connManager  ConnectionManager
+	connManager  connectionManager
 	vxlanHandler cache.ResourceEventHandler
 }
 
-func NewController(connManager ConnectionManager) *controller {
+func NewController(connManager connectionManager) *controller {
 	return &controller{
 		connManager: connManager,
 	}

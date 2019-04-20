@@ -25,10 +25,10 @@ import (
 )
 
 type vxlanHandler struct {
-	connManager ConnectionManager
+	connManager connectionManager
 }
 
-func newVxLANHandler(connManager ConnectionManager) *vxlanHandler {
+func newVxLANHandler(connManager connectionManager) *vxlanHandler {
 	return &vxlanHandler{
 		connManager: connManager,
 	}
