@@ -103,13 +103,41 @@ func getBridgeInterface() (*current.Interface, error) {
 	}, nil
 }
 
+// getPodInfo parses the values in CNI_ARGS and checks for values
+// K8S_POD_NAMESPACE and K8S_POD_NAME which should be set by the kubelet
+func getPodInfo() (string, string, error) {
+	cniArgs := os.Getenv("CNI_ARGS")
+	if cniArgs == "" {
+		return "", "", errors.New("env var CNI_ARGS was empty")
+	}
+
+	var podNamespace, podName string
+
+	args := strings.Split(cniArgs, ";")
+	for _, arg := range args {
+		if strings.Contains(arg, "K8S_POD_NAMESPACE") {
+			podNamespace = strings.TrimPrefix(arg, "K8S_POD_NAMESPACE=")
+			continue
+		}
+
+		if strings.Contains(arg, "K8S_POD_NAME") {
+			podName = strings.TrimPrefix(arg, "K8S_POD_NAME=")
+			continue
+		}
+	}
+
+	return podNamespace, podName, nil
+}
+
 // addPort adds port to a bridge, also adding the container ID
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, netNS string) error {
+func addPort(bridgeName, port, netNS, podNamespace, podName string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
 		"--", "set", "port", port,
 		fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
+		fmt.Sprintf("external-ids:k8s_pod_namespace=%s", podNamespace),
+		fmt.Sprintf("external-ids:k8s_pod_name=%s", podName),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -126,44 +154,47 @@ func delPort(bridge, port string) error {
 		"--if-exists", "del-port", bridge, port,
 	}
 
-	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
+	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete OVS port %q on bridge %q, err: %v",
-			port, bridge, err)
+		return fmt.Errorf("failed to delete OVS port %q on bridge %q, err: %v, output: %q",
+			port, bridge, err, string(out))
 	}
 
 	return nil
 }
 
-// getPortByNetNS finds the OVS port name by network namespace
+// findPort finds the OVS port name by network namespace
 // TODO: CNI delete can be called multiple times so this method will often
 // return errors even though the port was successfully deleted.
-func getPortByNetNS(bridge, netNS string) (string, error) {
+func findPort(bridge, netNS, podNamespace, podName string) (string, error) {
 	commands := []string{
 		"--format=json", "--column=name", "find",
 		"port", fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
+		fmt.Sprintf("external-ids:k8s_pod_namespace=%s", podNamespace),
+		fmt.Sprintf("external-ids:k8s_pod_name=%s", podName),
 	}
 
-	out, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
+	out, err := exec.Command("ovs-vsctl", commands...).Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get OVS port with container ID %q from bridge %q, err: %v",
+		return "", fmt.Errorf("failed to get OVS port with net namespace %q from bridge %q, err: %v",
 			netNS, bridge, err)
 	}
 
 	dbData := struct {
-		data [][]string
+		Data [][]string
 	}{}
 	if err = json.Unmarshal(out, &dbData); err != nil {
 		return "", err
 	}
 
-	if len(dbData.data) == 0 {
+	if len(dbData.Data) == 0 {
 		// TODO: might make more sense to not return an error here since
 		// CNI delete can be called multiple times.
-		return "", fmt.Errorf("OVS port with network namespace %q was not found, OVS DB data: %v", netNS, dbData.data)
+		return "", fmt.Errorf("OVS port for %s/%s was not found, OVS DB data: %v, output: %q",
+			podNamespace, podName, dbData.Data, string(out))
 	}
 
-	portName := dbData.data[0][0]
+	portName := dbData.Data[0][0]
 	return portName, nil
 }
 
@@ -333,7 +364,12 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns)
+	podNamespace, podName, err := getPodInfo()
+	if err != nil {
+		return err
+	}
+
+	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns, podNamespace, podName)
 	if err != nil {
 		return err
 	}
@@ -481,10 +517,15 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	podNamespace, podName, err := getPodInfo()
+	if err != nil {
+		return err
+	}
+
 	// attempt to deleted the associated port for the network namespace if it exists
 	// otherwise skip assuming this port it was already deleted it
 	if args.Netns != "" {
-		portName, err := getPortByNetNS(netConf.BridgeName, args.Netns)
+		portName, err := findPort(netConf.BridgeName, args.Netns, podNamespace, podName)
 		if err != nil {
 			return err
 		}
