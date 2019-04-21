@@ -25,20 +25,22 @@ import (
 
 const (
 	tableClassification         = 0
-	tableL3Rewrites             = 10
-	tableL3Forwarding           = 20
-	tableL2Rewrites             = 30
-	tableL2Forwarding           = 40
-	tableNetworkPoliciesIngress = 50
-	tableNetworkPoliciesEgress  = 60
-	tableProxy                  = 70
-	tableNAT                    = 80
-	tableAudit                  = 90
+	tableOverlay                = 10
+	tableL3Rewrites             = 20
+	tableL3Forwarding           = 30
+	tableL2Rewrites             = 40
+	tableL2Forwarding           = 50
+	tableNetworkPoliciesIngress = 60
+	tableNetworkPoliciesEgress  = 70
+	tableProxy                  = 80
+	tableNAT                    = 90
+	tableAudit                  = 100
 )
 
 func (c *controller) setupBaseFlows() error {
 	baseFlows := []*ofp13.OfpFlowMod{
 		baseFlows(tableClassification),
+		baseFlows(tableOverlay),
 		baseFlows(tableL3Rewrites),
 		baseFlows(tableL3Forwarding),
 		baseFlows(tableL2Rewrites),
