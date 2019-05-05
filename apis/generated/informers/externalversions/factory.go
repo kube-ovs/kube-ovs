@@ -28,7 +28,7 @@ import (
 
 	versioned "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	internalinterfaces "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions/internalinterfaces"
-	vswitch "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions/vswitch"
+	kubeovs "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions/kubeovs"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -175,9 +175,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Vswitch() vswitch.Interface
+	Kubeovs() kubeovs.Interface
 }
 
-func (f *sharedInformerFactory) Vswitch() vswitch.Interface {
-	return vswitch.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Kubeovs() kubeovs.Interface {
+	return kubeovs.New(f, f.namespace, f.tweakListOptions)
 }

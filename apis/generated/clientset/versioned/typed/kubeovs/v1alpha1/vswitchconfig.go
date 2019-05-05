@@ -25,7 +25,7 @@ import (
 	"time"
 
 	scheme "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned/scheme"
-	v1alpha1 "github.com/kube-ovs/kube-ovs/apis/vswitch/v1alpha1"
+	v1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -58,7 +58,7 @@ type vSwitchConfigs struct {
 }
 
 // newVSwitchConfigs returns a VSwitchConfigs
-func newVSwitchConfigs(c *VswitchV1alpha1Client, namespace string) *vSwitchConfigs {
+func newVSwitchConfigs(c *KubeovsV1alpha1Client, namespace string) *vSwitchConfigs {
 	return &vSwitchConfigs{
 		client: c.RESTClient(),
 		ns:     namespace,

@@ -22,7 +22,7 @@ under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/kube-ovs/kube-ovs/apis/vswitch/v1alpha1"
+	v1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,13 +33,13 @@ import (
 
 // FakeVSwitchConfigs implements VSwitchConfigInterface
 type FakeVSwitchConfigs struct {
-	Fake *FakeVswitchV1alpha1
+	Fake *FakeKubeovsV1alpha1
 	ns   string
 }
 
-var vswitchconfigsResource = schema.GroupVersionResource{Group: "vswitch.kubeovs.io", Version: "v1alpha1", Resource: "vswitchconfigs"}
+var vswitchconfigsResource = schema.GroupVersionResource{Group: "kubeovs.io", Version: "v1alpha1", Resource: "vswitchconfigs"}
 
-var vswitchconfigsKind = schema.GroupVersionKind{Group: "vswitch.kubeovs.io", Version: "v1alpha1", Kind: "VSwitchConfig"}
+var vswitchconfigsKind = schema.GroupVersionKind{Group: "kubeovs.io", Version: "v1alpha1", Kind: "VSwitchConfig"}
 
 // Get takes name of the vSwitchConfig, and returns the corresponding vSwitchConfig object, and an error if there is any.
 func (c *FakeVSwitchConfigs) Get(name string, options v1.GetOptions) (result *v1alpha1.VSwitchConfig, err error) {

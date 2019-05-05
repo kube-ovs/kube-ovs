@@ -23,8 +23,8 @@ package fake
 
 import (
 	clientset "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
-	vswitchv1alpha1 "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned/typed/vswitch/v1alpha1"
-	fakevswitchv1alpha1 "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned/typed/vswitch/v1alpha1/fake"
+	kubeovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned/typed/kubeovs/v1alpha1"
+	fakekubeovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned/typed/kubeovs/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -79,7 +79,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// VswitchV1alpha1 retrieves the VswitchV1alpha1Client
-func (c *Clientset) VswitchV1alpha1() vswitchv1alpha1.VswitchV1alpha1Interface {
-	return &fakevswitchv1alpha1.FakeVswitchV1alpha1{Fake: &c.Fake}
+// KubeovsV1alpha1 retrieves the KubeovsV1alpha1Client
+func (c *Clientset) KubeovsV1alpha1() kubeovsv1alpha1.KubeovsV1alpha1Interface {
+	return &fakekubeovsv1alpha1.FakeKubeovsV1alpha1{Fake: &c.Fake}
 }
