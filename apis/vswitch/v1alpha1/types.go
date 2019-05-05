@@ -42,7 +42,7 @@ type VSwitchConfigSpec struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// FooList is a list of Foo resources
+// VSwitchConfigList is a list of VSwitchConfig resources
 type VSwitchConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
