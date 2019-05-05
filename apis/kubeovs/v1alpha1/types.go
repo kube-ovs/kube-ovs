@@ -36,8 +36,9 @@ type VSwitchConfig struct {
 
 // VSwitchSpec is the spec for the Open vSwitch configuration
 type VSwitchConfigSpec struct {
-	OverlayIP   string `json:"overlayIP"`
-	OverlayType string `json:"overlayType"`
+	OverlayIP       string `json:"overlayIP"`
+	OverlayType     string `json:"overlayType"`
+	OverlayTunnelID string `json:"overlayTunnelID"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
