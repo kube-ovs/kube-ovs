@@ -56,6 +56,7 @@ func main() {
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		klog.Errorf("error create in cluster config: %v", err)
+		os.Exit(1)
 	}
 
 	clientset, err := kubernetes.NewForConfig(restConfig)
