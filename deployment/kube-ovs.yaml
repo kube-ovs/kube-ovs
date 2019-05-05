@@ -8,7 +8,7 @@ spec:
   names:
     kind: VSwitchConfig
     plural: vswitchconfigs
-  scope: Namespaced
+  scope: Cluster
 
 ---
 apiVersion: v1

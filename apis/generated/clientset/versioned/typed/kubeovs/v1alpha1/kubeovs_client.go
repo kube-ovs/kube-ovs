@@ -37,8 +37,8 @@ type KubeovsV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *KubeovsV1alpha1Client) VSwitchConfigs(namespace string) VSwitchConfigInterface {
-	return newVSwitchConfigs(c, namespace)
+func (c *KubeovsV1alpha1Client) VSwitchConfigs() VSwitchConfigInterface {
+	return newVSwitchConfigs(c)
 }
 
 // NewForConfig creates a new KubeovsV1alpha1Client for the given config.

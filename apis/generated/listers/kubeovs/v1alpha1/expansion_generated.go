@@ -24,7 +24,3 @@ package v1alpha1
 // VSwitchConfigListerExpansion allows custom methods to be added to
 // VSwitchConfigLister.
 type VSwitchConfigListerExpansion interface{}
-
-// VSwitchConfigNamespaceListerExpansion allows custom methods to be added to
-// VSwitchConfigNamespaceLister.
-type VSwitchConfigNamespaceListerExpansion interface{}

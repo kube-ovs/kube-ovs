@@ -34,7 +34,6 @@ import (
 // FakeVSwitchConfigs implements VSwitchConfigInterface
 type FakeVSwitchConfigs struct {
 	Fake *FakeKubeovsV1alpha1
-	ns   string
 }
 
 var vswitchconfigsResource = schema.GroupVersionResource{Group: "kubeovs.io", Version: "v1alpha1", Resource: "vswitchconfigs"}
@@ -44,8 +43,7 @@ var vswitchconfigsKind = schema.GroupVersionKind{Group: "kubeovs.io", Version: "
 // Get takes name of the vSwitchConfig, and returns the corresponding vSwitchConfig object, and an error if there is any.
 func (c *FakeVSwitchConfigs) Get(name string, options v1.GetOptions) (result *v1alpha1.VSwitchConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(vswitchconfigsResource, c.ns, name), &v1alpha1.VSwitchConfig{})
-
+		Invokes(testing.NewRootGetAction(vswitchconfigsResource, name), &v1alpha1.VSwitchConfig{})
 	if obj == nil {
 		return nil, err
 	}
@@ -55,8 +53,7 @@ func (c *FakeVSwitchConfigs) Get(name string, options v1.GetOptions) (result *v1
 // List takes label and field selectors, and returns the list of VSwitchConfigs that match those selectors.
 func (c *FakeVSwitchConfigs) List(opts v1.ListOptions) (result *v1alpha1.VSwitchConfigList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(vswitchconfigsResource, vswitchconfigsKind, c.ns, opts), &v1alpha1.VSwitchConfigList{})
-
+		Invokes(testing.NewRootListAction(vswitchconfigsResource, vswitchconfigsKind, opts), &v1alpha1.VSwitchConfigList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -77,15 +74,13 @@ func (c *FakeVSwitchConfigs) List(opts v1.ListOptions) (result *v1alpha1.VSwitch
 // Watch returns a watch.Interface that watches the requested vSwitchConfigs.
 func (c *FakeVSwitchConfigs) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(vswitchconfigsResource, c.ns, opts))
-
+		InvokesWatch(testing.NewRootWatchAction(vswitchconfigsResource, opts))
 }
 
 // Create takes the representation of a vSwitchConfig and creates it.  Returns the server's representation of the vSwitchConfig, and an error, if there is any.
 func (c *FakeVSwitchConfigs) Create(vSwitchConfig *v1alpha1.VSwitchConfig) (result *v1alpha1.VSwitchConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(vswitchconfigsResource, c.ns, vSwitchConfig), &v1alpha1.VSwitchConfig{})
-
+		Invokes(testing.NewRootCreateAction(vswitchconfigsResource, vSwitchConfig), &v1alpha1.VSwitchConfig{})
 	if obj == nil {
 		return nil, err
 	}
@@ -95,8 +90,7 @@ func (c *FakeVSwitchConfigs) Create(vSwitchConfig *v1alpha1.VSwitchConfig) (resu
 // Update takes the representation of a vSwitchConfig and updates it. Returns the server's representation of the vSwitchConfig, and an error, if there is any.
 func (c *FakeVSwitchConfigs) Update(vSwitchConfig *v1alpha1.VSwitchConfig) (result *v1alpha1.VSwitchConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(vswitchconfigsResource, c.ns, vSwitchConfig), &v1alpha1.VSwitchConfig{})
-
+		Invokes(testing.NewRootUpdateAction(vswitchconfigsResource, vSwitchConfig), &v1alpha1.VSwitchConfig{})
 	if obj == nil {
 		return nil, err
 	}
@@ -106,14 +100,13 @@ func (c *FakeVSwitchConfigs) Update(vSwitchConfig *v1alpha1.VSwitchConfig) (resu
 // Delete takes name of the vSwitchConfig and deletes it. Returns an error if one occurs.
 func (c *FakeVSwitchConfigs) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(vswitchconfigsResource, c.ns, name), &v1alpha1.VSwitchConfig{})
-
+		Invokes(testing.NewRootDeleteAction(vswitchconfigsResource, name), &v1alpha1.VSwitchConfig{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeVSwitchConfigs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(vswitchconfigsResource, c.ns, listOptions)
+	action := testing.NewRootDeleteCollectionAction(vswitchconfigsResource, listOptions)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.VSwitchConfigList{})
 	return err
@@ -122,8 +115,7 @@ func (c *FakeVSwitchConfigs) DeleteCollection(options *v1.DeleteOptions, listOpt
 // Patch applies the patch and returns the patched vSwitchConfig.
 func (c *FakeVSwitchConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.VSwitchConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(vswitchconfigsResource, c.ns, name, pt, data, subresources...), &v1alpha1.VSwitchConfig{})
-
+		Invokes(testing.NewRootPatchSubresourceAction(vswitchconfigsResource, name, pt, data, subresources...), &v1alpha1.VSwitchConfig{})
 	if obj == nil {
 		return nil, err
 	}

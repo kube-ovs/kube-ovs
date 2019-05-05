@@ -35,7 +35,7 @@ import (
 // VSwitchConfigsGetter has a method to return a VSwitchConfigInterface.
 // A group's client should implement this interface.
 type VSwitchConfigsGetter interface {
-	VSwitchConfigs(namespace string) VSwitchConfigInterface
+	VSwitchConfigs() VSwitchConfigInterface
 }
 
 // VSwitchConfigInterface has methods to work with VSwitchConfig resources.
@@ -54,14 +54,12 @@ type VSwitchConfigInterface interface {
 // vSwitchConfigs implements VSwitchConfigInterface
 type vSwitchConfigs struct {
 	client rest.Interface
-	ns     string
 }
 
 // newVSwitchConfigs returns a VSwitchConfigs
-func newVSwitchConfigs(c *KubeovsV1alpha1Client, namespace string) *vSwitchConfigs {
+func newVSwitchConfigs(c *KubeovsV1alpha1Client) *vSwitchConfigs {
 	return &vSwitchConfigs{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -69,7 +67,6 @@ func newVSwitchConfigs(c *KubeovsV1alpha1Client, namespace string) *vSwitchConfi
 func (c *vSwitchConfigs) Get(name string, options v1.GetOptions) (result *v1alpha1.VSwitchConfig, err error) {
 	result = &v1alpha1.VSwitchConfig{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -86,7 +83,6 @@ func (c *vSwitchConfigs) List(opts v1.ListOptions) (result *v1alpha1.VSwitchConf
 	}
 	result = &v1alpha1.VSwitchConfigList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -103,7 +99,6 @@ func (c *vSwitchConfigs) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -114,7 +109,6 @@ func (c *vSwitchConfigs) Watch(opts v1.ListOptions) (watch.Interface, error) {
 func (c *vSwitchConfigs) Create(vSwitchConfig *v1alpha1.VSwitchConfig) (result *v1alpha1.VSwitchConfig, err error) {
 	result = &v1alpha1.VSwitchConfig{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		Body(vSwitchConfig).
 		Do().
@@ -126,7 +120,6 @@ func (c *vSwitchConfigs) Create(vSwitchConfig *v1alpha1.VSwitchConfig) (result *
 func (c *vSwitchConfigs) Update(vSwitchConfig *v1alpha1.VSwitchConfig) (result *v1alpha1.VSwitchConfig, err error) {
 	result = &v1alpha1.VSwitchConfig{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		Name(vSwitchConfig.Name).
 		Body(vSwitchConfig).
@@ -138,7 +131,6 @@ func (c *vSwitchConfigs) Update(vSwitchConfig *v1alpha1.VSwitchConfig) (result *
 // Delete takes name of the vSwitchConfig and deletes it. Returns an error if one occurs.
 func (c *vSwitchConfigs) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		Name(name).
 		Body(options).
@@ -153,7 +145,6 @@ func (c *vSwitchConfigs) DeleteCollection(options *v1.DeleteOptions, listOptions
 		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -166,7 +157,6 @@ func (c *vSwitchConfigs) DeleteCollection(options *v1.DeleteOptions, listOptions
 func (c *vSwitchConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.VSwitchConfig, err error) {
 	result = &v1alpha1.VSwitchConfig{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("vswitchconfigs").
 		SubResource(subresources...).
 		Name(name).

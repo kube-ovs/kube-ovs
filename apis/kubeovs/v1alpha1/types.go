@@ -24,6 +24,7 @@ import (
 )
 
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // VSwitchConfig is a specification for the Open vSwitch configuration
@@ -41,6 +42,7 @@ type VSwitchConfigSpec struct {
 	OverlayTunnelID int32  `json:"overlayTunnelID"`
 }
 
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // VSwitchConfigList is a list of VSwitchConfig resources

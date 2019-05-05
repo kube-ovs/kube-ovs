@@ -32,8 +32,8 @@ import (
 type VSwitchConfigLister interface {
 	// List lists all VSwitchConfigs in the indexer.
 	List(selector labels.Selector) (ret []*v1alpha1.VSwitchConfig, err error)
-	// VSwitchConfigs returns an object that can list and get VSwitchConfigs.
-	VSwitchConfigs(namespace string) VSwitchConfigNamespaceLister
+	// Get retrieves the VSwitchConfig from the index for a given name.
+	Get(name string) (*v1alpha1.VSwitchConfig, error)
 	VSwitchConfigListerExpansion
 }
 
@@ -55,38 +55,9 @@ func (s *vSwitchConfigLister) List(selector labels.Selector) (ret []*v1alpha1.VS
 	return ret, err
 }
 
-// VSwitchConfigs returns an object that can list and get VSwitchConfigs.
-func (s *vSwitchConfigLister) VSwitchConfigs(namespace string) VSwitchConfigNamespaceLister {
-	return vSwitchConfigNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// VSwitchConfigNamespaceLister helps list and get VSwitchConfigs.
-type VSwitchConfigNamespaceLister interface {
-	// List lists all VSwitchConfigs in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1alpha1.VSwitchConfig, err error)
-	// Get retrieves the VSwitchConfig from the indexer for a given namespace and name.
-	Get(name string) (*v1alpha1.VSwitchConfig, error)
-	VSwitchConfigNamespaceListerExpansion
-}
-
-// vSwitchConfigNamespaceLister implements the VSwitchConfigNamespaceLister
-// interface.
-type vSwitchConfigNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VSwitchConfigs in the indexer for a given namespace.
-func (s vSwitchConfigNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.VSwitchConfig, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.VSwitchConfig))
-	})
-	return ret, err
-}
-
-// Get retrieves the VSwitchConfig from the indexer for a given namespace and name.
-func (s vSwitchConfigNamespaceLister) Get(name string) (*v1alpha1.VSwitchConfig, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the VSwitchConfig from the index for a given name.
+func (s *vSwitchConfigLister) Get(name string) (*v1alpha1.VSwitchConfig, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

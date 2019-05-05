@@ -44,5 +44,5 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // VSwitchConfigs returns a VSwitchConfigInformer.
 func (v *version) VSwitchConfigs() VSwitchConfigInformer {
-	return &vSwitchConfigInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &vSwitchConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

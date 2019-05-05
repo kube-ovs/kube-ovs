@@ -31,8 +31,8 @@ type FakeKubeovsV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeKubeovsV1alpha1) VSwitchConfigs(namespace string) v1alpha1.VSwitchConfigInterface {
-	return &FakeVSwitchConfigs{c, namespace}
+func (c *FakeKubeovsV1alpha1) VSwitchConfigs() v1alpha1.VSwitchConfigInterface {
+	return &FakeVSwitchConfigs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
