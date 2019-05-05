@@ -138,6 +138,10 @@ func addPort(bridgeName, port, netNS, podNamespace, podName string) error {
 		fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
 		fmt.Sprintf("external-ids:k8s_pod_namespace=%s", podNamespace),
 		fmt.Sprintf("external-ids:k8s_pod_name=%s", podName),
+		"--", "set", "interface", port,
+		fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
+		fmt.Sprintf("external-ids:k8s_pod_namespace=%s", podNamespace),
+		fmt.Sprintf("external-ids:k8s_pod_name=%s", podName),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
