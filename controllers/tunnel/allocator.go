@@ -116,11 +116,9 @@ func (t *tunnelIDAllocactor) allocateTunnelID(vswitchcfg *kovsv1alpha1.VSwitchCo
 	var candTunID int32
 	for candTunID = defaultMinTunnelID; candTunID <= defaultMaxTunnelID; candTunID++ {
 		_, found := tunIDs[candTunID]
-		if found {
-			continue
+		if !found {
+			break
 		}
-
-		break
 	}
 
 	newVSwitchCfg := vswitchcfg.DeepCopy()

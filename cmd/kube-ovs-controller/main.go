@@ -24,8 +24,10 @@ import (
 
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
+	"github.com/kube-ovs/kube-ovs/controllers/tunnel"
 
 	coreinformer "k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 )
@@ -52,13 +54,16 @@ func main() {
 	}
 
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
-	vswitchLister := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Lister()
+	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Informer()
 
 	coreInformerFactory := coreinformer.NewSharedInformerFactory(clientset, 0)
 	nodeInformer := coreInformerFactory.Core().V1().Nodes().Informer()
 
 	kovsInformerFactory.WaitForCacheSync(nil)
 	coreInformerFactory.WaitForCacheSync(nil)
+
+	tunnelController := tunnel.NewTunnelIDAllocator(kovsClientset)
+	vswitchInformer.AddEventHandler(tunnelController)
 
 	kovsInformerFactory.Start(nil)
 	coreInformerFactory.Start(nil)
