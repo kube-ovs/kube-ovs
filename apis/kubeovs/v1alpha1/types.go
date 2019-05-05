@@ -38,7 +38,7 @@ type VSwitchConfig struct {
 type VSwitchConfigSpec struct {
 	OverlayIP       string `json:"overlayIP"`
 	OverlayType     string `json:"overlayType"`
-	OverlayTunnelID string `json:"overlayTunnelID"`
+	OverlayTunnelID int32  `json:"overlayTunnelID"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
