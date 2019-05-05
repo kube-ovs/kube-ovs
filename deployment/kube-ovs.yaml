@@ -33,6 +33,18 @@ rules:
       - list
       - get
       - watch
+  - apiGroups:
+    - "kubeovs.io"
+    resources:
+      - vswitchconfigs
+    verbs:
+      - list
+      - get
+      - watch
+      - create
+      - update
+      - patch
+      - delete
 
 ---
 kind: ClusterRoleBinding
