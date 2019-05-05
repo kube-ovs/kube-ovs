@@ -51,7 +51,7 @@ github.com/vishvananda/netlink/nl
 github.com/vishvananda/netns
 # golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20190108225652-1e06a53dbb7e
+# golang.org/x/net v0.0.0-20190311183353-d8887717615a
 golang.org/x/net/http2
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
@@ -301,7 +301,7 @@ k8s.io/client-go/listers/settings/v1alpha1
 k8s.io/client-go/listers/storage/v1
 k8s.io/client-go/listers/storage/v1alpha1
 k8s.io/client-go/listers/storage/v1beta1
-# k8s.io/klog v0.2.0
+# k8s.io/klog v0.3.0
 k8s.io/klog
 # k8s.io/utils v0.0.0-20190308190857-21c4ce38f2a7
 k8s.io/utils/buffer
