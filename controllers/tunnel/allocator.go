@@ -147,6 +147,12 @@ func (t *tunnelIDAllocactor) getCurrentTunnelIDs() (map[int32]struct{}, error) {
 	tunnelIDs := make(map[int32]struct{})
 	for _, vswitchCfg := range vswitchCfgs.Items {
 		tunID := vswitchCfg.Spec.OverlayTunnelID
+
+		// vswitch configs with tunnel ID 0 require allocation, skip checking them
+		if tunID == 0 {
+			continue
+		}
+
 		err = validateTunnelID(tunID)
 		if err != nil {
 			klog.Warningf("invalid tunnel ID %d, err: %v", tunID, err)
