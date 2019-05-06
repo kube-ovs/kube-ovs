@@ -20,7 +20,10 @@ under the License.
 package main
 
 import (
+	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
@@ -34,6 +37,7 @@ import (
 )
 
 func main() {
+	klog.InitFlags(flag.CommandLine)
 	klog.Info("starting kube-ovs-controller")
 
 	restConfig, err := rest.InClusterConfig()
@@ -54,6 +58,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	stopCh := make(chan struct{})
+
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-term
+		close(stopCh)
+	}()
+
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
 	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Informer()
 	vswitchLister := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Lister()
@@ -61,8 +74,8 @@ func main() {
 	coreInformerFactory := coreinformer.NewSharedInformerFactory(clientset, 0)
 	nodeInformer := coreInformerFactory.Core().V1().Nodes().Informer()
 
-	kovsInformerFactory.WaitForCacheSync(nil)
-	coreInformerFactory.WaitForCacheSync(nil)
+	kovsInformerFactory.WaitForCacheSync(stopCh)
+	coreInformerFactory.WaitForCacheSync(stopCh)
 
 	tunnelController := tunnel.NewTunnelIDAllocator(kovsClientset)
 	vswitchInformer.AddEventHandler(tunnelController)
@@ -70,8 +83,8 @@ func main() {
 	vswitchController := vswitchcfg.NewVSwitchConfigController(vswitchLister, clientset, kovsClientset, "vxlan")
 	nodeInformer.AddEventHandler(vswitchController)
 
-	kovsInformerFactory.Start(nil)
-	coreInformerFactory.Start(nil)
+	kovsInformerFactory.Start(stopCh)
+	coreInformerFactory.Start(stopCh)
 
 	select {}
 }
