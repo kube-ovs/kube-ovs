@@ -56,6 +56,7 @@ func main() {
 
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
 	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Informer()
+	vswitchLister := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs().Lister()
 
 	coreInformerFactory := coreinformer.NewSharedInformerFactory(clientset, 0)
 	nodeInformer := coreInformerFactory.Core().V1().Nodes().Informer()
@@ -66,7 +67,7 @@ func main() {
 	tunnelController := tunnel.NewTunnelIDAllocator(kovsClientset)
 	vswitchInformer.AddEventHandler(tunnelController)
 
-	vswitchController := vswitchcfg.NewVSwitchConfigController(clientset, kovsClientset, "vxlan")
+	vswitchController := vswitchcfg.NewVSwitchConfigController(vswitchLister, clientset, kovsClientset, "vxlan")
 	nodeInformer.AddEventHandler(vswitchController)
 
 	kovsInformerFactory.Start(nil)
