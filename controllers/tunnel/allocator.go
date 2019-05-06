@@ -25,6 +25,8 @@ import (
 	"sync"
 
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
+	kovsinformers "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions/kubeovs/v1alpha1"
+	kovslisters "github.com/kube-ovs/kube-ovs/apis/generated/listers/kubeovs/v1alpha1"
 	kovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,17 +38,23 @@ const (
 	defaultMaxTunnelID = 9999
 )
 
+// TODO: implement controller using queue
 type tunnelIDAllocactor struct {
 	// mutex ensures only 1 tunnel ID is being allocated at a time
 	allocatorLock sync.Mutex
 
 	kovsClientset kovs.Interface
+	vswitchLister kovslisters.VSwitchConfigLister
 }
 
-func NewTunnelIDAllocator(kovsClient kovs.Interface) *tunnelIDAllocactor {
-	return &tunnelIDAllocactor{
+func NewTunnelIDAllocator(kovsClient kovs.Interface,
+	vswitchInformer kovsinformers.VSwitchConfigInformer) *tunnelIDAllocactor {
+	t := &tunnelIDAllocactor{
 		kovsClientset: kovsClient,
+		vswitchLister: vswitchInformer.Lister(),
 	}
+
+	return t
 }
 
 func (t *tunnelIDAllocactor) OnAdd(obj interface{}) {

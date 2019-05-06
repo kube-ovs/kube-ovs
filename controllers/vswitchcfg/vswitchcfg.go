@@ -24,31 +24,47 @@ import (
 	"fmt"
 
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
+	kovsinformers "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions/kubeovs/v1alpha1"
 	kovslister "github.com/kube-ovs/kube-ovs/apis/generated/listers/kubeovs/v1alpha1"
 	kovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	v1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
 )
 
+// vswitchConfig is a controller that creates VSwitchConfig resources
+// based on node events
+// TODO: implement controller using queues
 type vswitchConfig struct {
 	overlayType string
 
-	kovsClient    kovs.Interface
-	kubeClient    kubernetes.Interface
+	kovsClient kovs.Interface
+	kubeClient kubernetes.Interface
+
 	vswitchLister kovslister.VSwitchConfigLister
+	nodeLister    v1lister.NodeLister
 }
 
-func NewVSwitchConfigController(vswitchLister kovslister.VSwitchConfigLister, kubeClient kubernetes.Interface, kovsClient kovs.Interface, overlayType string) *vswitchConfig {
-	return &vswitchConfig{
+func NewVSwitchConfigController(
+	vswitchInformer kovsinformers.VSwitchConfigInformer,
+	nodeInformer v1informer.NodeInformer,
+	kubeClient kubernetes.Interface,
+	kovsClient kovs.Interface, overlayType string) *vswitchConfig {
+
+	v := &vswitchConfig{
 		overlayType:   overlayType,
 		kovsClient:    kovsClient,
 		kubeClient:    kubeClient,
-		vswitchLister: vswitchLister,
+		vswitchLister: vswitchInformer.Lister(),
+		nodeLister:    nodeInformer.Lister(),
 	}
+
+	return v
 }
 
 func (v *vswitchConfig) OnAdd(obj interface{}) {
@@ -97,12 +113,15 @@ func (v *vswitchConfig) OnUpdate(oldObj, newObj interface{}) {
 }
 
 func (v *vswitchConfig) OnDelete(obj interface{}) {
-	_, ok := obj.(*corev1.Node)
+	node, ok := obj.(*corev1.Node)
 	if !ok {
 		klog.Errorf("obj %v was not core/v1 node", obj)
 	}
 
-	// TODO: delete VSwitchConfig if node is deleted
+	err := v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Delete(node.Name, &metav1.DeleteOptions{})
+	if err != nil {
+		klog.Errorf("error syncing VSwitchConfig: %v", err)
+	}
 }
 
 func (v *vswitchConfig) needsUpdate(node *corev1.Node) (bool, error) {
