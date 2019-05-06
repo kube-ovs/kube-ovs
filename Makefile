@@ -16,6 +16,12 @@ compile:
 	  -w /go/src/github.com/kube-ovs/kube-ovs \
 	  golang:1.12 sh -c '\
 	  CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -mod=vendor \
+	  github.com/kube-ovs/kube-ovs/cmd/kube-ovs-controller'
+	docker run \
+	  -v $(PWD):/go/src/github.com/kube-ovs/kube-ovs \
+	  -w /go/src/github.com/kube-ovs/kube-ovs \
+	  golang:1.12 sh -c '\
+	  CGO_ENABLED=0 GOOS=linux GO111MODULE=on go build -mod=vendor \
 	  github.com/kube-ovs/kube-ovs/cmd/kube-ovs-cni'
 
 .PHONY: build
