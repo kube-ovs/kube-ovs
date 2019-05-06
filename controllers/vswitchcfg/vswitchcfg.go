@@ -40,6 +40,14 @@ type vswitchConfig struct {
 	kubeClient kubernetes.Interface
 }
 
+func NewVSwitchConfigController(kubeClient kubernetes.Interface, kovsClient kovs.Interface, overlayType string) *vswitchConfig {
+	return &vswitchConfig{
+		overlayType: overlayType,
+		kovsClient:  kovsClient,
+		kubeClient:  kubeClient,
+	}
+}
+
 func (v *vswitchConfig) OnAdd(obj interface{}) {
 	node, ok := obj.(*corev1.Node)
 	if !ok {

@@ -25,6 +25,7 @@ import (
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
 	"github.com/kube-ovs/kube-ovs/controllers/tunnel"
+	"github.com/kube-ovs/kube-ovs/controllers/vswitchcfg"
 
 	coreinformer "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -65,6 +66,11 @@ func main() {
 	tunnelController := tunnel.NewTunnelIDAllocator(kovsClientset)
 	vswitchInformer.AddEventHandler(tunnelController)
 
+	vswitchController := vswitchcfg.NewVSwitchConfigController(clientset, kovsClientset, "vxlan")
+	nodeInformer.AddEventHandler(vswitchController)
+
 	kovsInformerFactory.Start(nil)
 	coreInformerFactory.Start(nil)
+
+	select {}
 }
