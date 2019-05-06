@@ -65,7 +65,6 @@ func (t *tunnelIDAllocactor) OnAdd(obj interface{}) {
 		klog.Errorf("error allocating tunnel ID for vswitch %q, err: %v", vswitchcfg.Name, err)
 		return
 	}
-
 }
 
 func (t *tunnelIDAllocactor) OnUpdate(oldObj, newObj interface{}) {
@@ -104,7 +103,7 @@ func (t *tunnelIDAllocactor) allocateTunnelID(vswitchcfg *kovsv1alpha1.VSwitchCo
 		return fmt.Errorf("error refetching vswitch config: %v", err)
 	}
 
-	if vswitchcfg.Spec.OverlayTunnelID == 0 {
+	if vswitchcfg.Spec.OverlayTunnelID != 0 {
 		return nil
 	}
 
@@ -132,13 +131,12 @@ func (t *tunnelIDAllocactor) allocateTunnelID(vswitchcfg *kovsv1alpha1.VSwitchCo
 }
 
 func (t *tunnelIDAllocactor) getCurrentTunnelIDs() (map[int32]struct{}, error) {
-	var tunnelIDs map[int32]struct{}
-
 	vswitchCfgs, err := t.kovsClientset.KubeovsV1alpha1().VSwitchConfigs().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
+	tunnelIDs := make(map[int32]struct{})
 	for _, vswitchCfg := range vswitchCfgs.Items {
 		tunID := vswitchCfg.Spec.OverlayTunnelID
 		err = validateTunnelID(tunID)
