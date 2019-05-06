@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
+	kovslister "github.com/kube-ovs/kube-ovs/apis/generated/listers/kubeovs/v1alpha1"
 	kovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,15 +37,17 @@ import (
 type vswitchConfig struct {
 	overlayType string
 
-	kovsClient kovs.Interface
-	kubeClient kubernetes.Interface
+	kovsClient    kovs.Interface
+	kubeClient    kubernetes.Interface
+	vswitchLister kovslister.VSwitchConfigLister
 }
 
-func NewVSwitchConfigController(kubeClient kubernetes.Interface, kovsClient kovs.Interface, overlayType string) *vswitchConfig {
+func NewVSwitchConfigController(vswitchLister kovslister.VSwitchConfigLister, kubeClient kubernetes.Interface, kovsClient kovs.Interface, overlayType string) *vswitchConfig {
 	return &vswitchConfig{
-		overlayType: overlayType,
-		kovsClient:  kovsClient,
-		kubeClient:  kubeClient,
+		overlayType:   overlayType,
+		kovsClient:    kovsClient,
+		kubeClient:    kubeClient,
+		vswitchLister: vswitchLister,
 	}
 }
 
@@ -55,9 +58,19 @@ func (v *vswitchConfig) OnAdd(obj interface{}) {
 		return
 	}
 
-	err := v.syncVSwitchConfig(node)
+	shouldUpdate, err := v.needsUpdate(node)
 	if err != nil {
-		klog.Errorf("error creating VSwitchConfig: %v", err)
+		klog.Errorf("error checking if vswitch config for node %q needs update: %v", node.Name, err)
+		return
+	}
+
+	if !shouldUpdate {
+		return
+	}
+
+	err = v.syncVSwitchConfig(node)
+	if err != nil {
+		klog.Errorf("error syncing VSwitchConfig: %v", err)
 	}
 }
 
@@ -67,9 +80,19 @@ func (v *vswitchConfig) OnUpdate(oldObj, newObj interface{}) {
 		klog.Errorf("obj %v was not core/v1 node", newObj)
 	}
 
-	err := v.syncVSwitchConfig(node)
+	shouldUpdate, err := v.needsUpdate(node)
 	if err != nil {
-		klog.Errorf("error creating VSwitchConfig: %v", err)
+		klog.Errorf("error checking if vswitch config for node %q needs update: %v", node.Name, err)
+		return
+	}
+
+	if !shouldUpdate {
+		return
+	}
+
+	err = v.syncVSwitchConfig(node)
+	if err != nil {
+		klog.Errorf("error syncing VSwitchConfig: %v", err)
 	}
 }
 
@@ -82,29 +105,55 @@ func (v *vswitchConfig) OnDelete(obj interface{}) {
 	// TODO: delete VSwitchConfig if node is deleted
 }
 
+func (v *vswitchConfig) needsUpdate(node *corev1.Node) (bool, error) {
+	vswitchCfg, err := v.vswitchLister.Get(node.Name)
+	if apierr.IsNotFound(err) {
+		return true, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("error getting vswitch config from lister: %v", err)
+	}
+
+	overlayIP, err := nodeOverlayIP(node)
+	if err != nil {
+		return false, fmt.Errorf("failed to get overlay IP for node: %v", err)
+	}
+
+	if vswitchCfg.Spec.OverlayIP != overlayIP {
+		return true, nil
+	}
+
+	if vswitchCfg.Spec.OverlayType != v.overlayType {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (v *vswitchConfig) syncVSwitchConfig(node *corev1.Node) error {
-	// TODO: validate overly IP
 	overlayIP, err := nodeOverlayIP(node)
 	if err != nil {
 		return fmt.Errorf("error getting overlay IP for node %q, err: %v", node.Name, err)
 	}
 
-	vswitchCfg := nodeToVSwitchConfig(node, v.overlayType, overlayIP)
-	_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Create(vswitchCfg)
-	if err == nil {
-		return nil
+	vswitchCfg, err := v.vswitchLister.Get(node.Name)
+	if apierr.IsNotFound(err) {
+		vswitchCfg := nodeToVSwitchConfig(node, v.overlayType, overlayIP)
+		_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Create(vswitchCfg)
+		return err
 	}
 
-	if !apierr.IsAlreadyExists(err) {
-		return fmt.Errorf("error creating VSwitchConfig for node %q, err: %v", node.Name, err)
-	}
-
-	_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Update(vswitchCfg)
 	if err != nil {
-		return fmt.Errorf("error updating VSwitchConfig: %v", err)
+		return fmt.Errorf("error getting vswitch config from cache: %v", err)
 	}
 
-	return nil
+	newVSwitchCfg := vswitchCfg.DeepCopy()
+	newVSwitchCfg.Spec.OverlayIP = overlayIP
+	newVSwitchCfg.Spec.OverlayType = v.overlayType
+
+	_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Update(newVSwitchCfg)
+	return err
 }
 
 func nodeToVSwitchConfig(node *corev1.Node, overlayType, overlayIP string) *kovsv1alpha1.VSwitchConfig {
