@@ -20,18 +20,22 @@ under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/coreos/go-iptables/iptables"
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
-	"github.com/kube-ovs/kube-ovs/controllers"
+	"github.com/kube-ovs/kube-ovs/connection"
+	"github.com/kube-ovs/kube-ovs/controllers/openflow"
 	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,6 +57,7 @@ const (
 )
 
 func main() {
+	klog.InitFlags(flag.CommandLine)
 	klog.Info("starting kube-ovs")
 
 	restConfig, err := rest.InClusterConfig()
@@ -67,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	kovsClientset, err := kovs.NewForConfig(restVConfig)
+	kovsClientset, err := kovs.NewForConfig(restConfig)
 	if err != nil {
 		klog.Errorf("error getting kube-ovs clientset: %v", err)
 		os.Exit(1)
@@ -111,7 +116,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	addr, err := netlinkAddrForCIDR(podCIDR)
+	addr, err := netlinkAddrForCIDR(defaultClusterCIDR, podCIDR)
 	if err != nil {
 		klog.Errorf("failed to get netlink addr for CIDR %q, err: %v", podCIDR, err)
 		os.Exit(1)
@@ -148,10 +153,10 @@ func main() {
 	}()
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
+	nodeInformer := informerFactory.Core().V1().Nodes()
 
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
-	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
+	_ = kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
 
 	informerFactory.WaitForCacheSync(stopCh)
 	kovsInformerFactory.WaitForCacheSync(stopCh)
@@ -159,13 +164,13 @@ func main() {
 	informerFactory.Start(stopCh)
 	kovsInformerFactory.Start(stopCh)
 
-	connectionManager, err := controllers.NewOFConnect()
+	connectionManager, err := connection.NewOFConnect()
 	if err != nil {
 		klog.Errorf("error starting open flow connection manager: %v", err)
 		os.Exit(1)
 	}
 
-	c := controllers.NewController(connectionManager)
+	c := openflow.NewController(connectionManager, nodeInformer, curNode.Name, podCIDR, defaultClusterCIDR)
 
 	err = c.Initialize()
 	if err != nil {
@@ -173,27 +178,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	nodeInformer.AddEventHandler(c.VxLANHandler())
-
 	// TODO: add stopCh based on signals
 	go connectionManager.ProcessQueue()
 	go connectionManager.Serve()
 	c.Run()
 }
 
-func netlinkAddrForCIDR(podCIDR string) (*netlink.Addr, error) {
-	_, ipn, err := net.ParseCIDR(podCIDR)
+func netlinkAddrForCIDR(clusterCIDR, podCIDR string) (*netlink.Addr, error) {
+	_, podIPNet, err := net.ParseCIDR(podCIDR)
 	if err != nil {
 		return nil, err
 	}
 
-	nid := ipn.IP.Mask(ipn.Mask)
-	gw := ip.NextIP(nid)
+	gw := ip.NextIP(podIPNet.IP.Mask(podIPNet.Mask))
+
+	_, clusterIPNet, err := net.ParseCIDR(clusterCIDR)
+	if err != nil {
+		return nil, err
+	}
 
 	return &netlink.Addr{
 		IPNet: &net.IPNet{
 			IP:   gw,
-			Mask: ipn.Mask,
+			Mask: clusterIPNet.Mask,
 		},
 		Label: "",
 	}, nil

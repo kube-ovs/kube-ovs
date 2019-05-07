@@ -17,12 +17,13 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package controllers
+package openflow
 
 import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 
-	"k8s.io/client-go/tools/cache"
+	v1informer "k8s.io/client-go/informers/core/v1"
+	v1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
 )
 
@@ -34,11 +35,23 @@ type connectionManager interface {
 type controller struct {
 	datapathID  uint64
 	connManager connectionManager
+
+	nodeName    string
+	podCIDR     string
+	clusterCIDR string
+
+	nodeLister v1lister.NodeLister
 }
 
-func NewController(connManager connectionManager) *controller {
+func NewController(connManager connectionManager,
+	nodeInformer v1informer.NodeInformer,
+	nodeName, podCIDR, clusterCIDR string) *controller {
 	return &controller{
 		connManager: connManager,
+		nodeName:    nodeName,
+		podCIDR:     podCIDR,
+		clusterCIDR: clusterCIDR,
+		nodeLister:  nodeInformer.Lister(),
 	}
 }
 
@@ -52,8 +65,6 @@ func (c *controller) Initialize() error {
 	if err != nil {
 		return err
 	}
-
-	c.vxlanHandler = newVxLANHandler(c.connManager)
 
 	klog.Info("OF_HELLO message sent to switch")
 	return nil

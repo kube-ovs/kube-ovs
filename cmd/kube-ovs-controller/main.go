@@ -52,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	kovsClientset, err := kovs.NewForConfig(restVConfig)
+	kovsClientset, err := kovs.NewForConfig(restConfig)
 	if err != nil {
 		klog.Errorf("error getting kube-ovs clientset: %v", err)
 		os.Exit(1)
