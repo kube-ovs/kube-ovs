@@ -21,6 +21,8 @@ package openflow
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
@@ -111,11 +113,12 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	// traffic in the local pod CIDR should go to tableL2Rewrites
 	// TODO: put this in a separate function for "local" flows
 	match = ofp13.NewOfpMatch()
-	ipv4Match, err := ofp13.NewOxmIpv4Dst(c.podCIDR)
+	ipv4Match, err := newOxmIpv4SubnetDst(c.podCIDR)
 	if err != nil {
 		return nil, err
 	}
 	match.Append(ipv4Match)
+	match.Append(ofp13.NewOxmEthType(0x0800))
 	instruction = ofp13.NewOfpInstructionGotoTable(tableL2Rewrites)
 	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 200, 0, match,
 		[]ofp13.OfpInstruction{instruction})
@@ -125,11 +128,12 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	// traffic to local pod CIDR should never reach here since priority for the
 	// flow directly above is higher
 	match = ofp13.NewOfpMatch()
-	ipv4Match, err = ofp13.NewOxmIpv4Dst(c.clusterCIDR)
+	ipv4Match, err = newOxmIpv4SubnetDst(c.clusterCIDR)
 	if err != nil {
 		return nil, err
 	}
 	match.Append(ipv4Match)
+	match.Append(ofp13.NewOxmEthType(0x0800))
 	instruction = ofp13.NewOfpInstructionGotoTable(tableOverlay)
 	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 100, 0, match,
 		[]ofp13.OfpInstruction{instruction})
@@ -140,12 +144,13 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	//
 
 	if !isCurrentNode {
-		ipv4Match, err = ofp13.NewOxmIpv4Dst(podCIDR)
+		ipv4Match, err = newOxmIpv4SubnetDst(podCIDR)
 		if err != nil {
 			return nil, err
 		}
 
 		match = ofp13.NewOfpMatch()
+		match.Append(ofp13.NewOxmEthType(0x0800))
 		match.Append(ipv4Match)
 		applyInstruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
 		tunnelField := ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID))
@@ -157,6 +162,26 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	}
 
 	return flows, nil
+}
+
+func newOxmIpv4SubnetDst(dst string) (*ofp13.OxmIpv4, error) {
+	dstSplit := strings.Split(dst, "/")
+	if len(dstSplit) != 2 {
+		return nil, fmt.Errorf("invalid destination: %q", dst)
+	}
+
+	addr := dstSplit[0]
+	mask, err := strconv.Atoi(dstSplit[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid mask from cidr: %v", err)
+	}
+
+	ipv4Match, err := ofp13.NewOxmIpv4DstW(addr, mask)
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPv4DstW match: %v", err)
+	}
+
+	return ipv4Match, nil
 }
 
 func (c *controller) OnAddVSwitch(obj interface{}) {

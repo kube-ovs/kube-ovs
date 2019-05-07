@@ -42,6 +42,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 )
 
@@ -156,13 +157,7 @@ func main() {
 	nodeInformer := informerFactory.Core().V1().Nodes()
 
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
-	_ = kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
-
-	informerFactory.WaitForCacheSync(stopCh)
-	kovsInformerFactory.WaitForCacheSync(stopCh)
-
-	informerFactory.Start(stopCh)
-	kovsInformerFactory.Start(stopCh)
+	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
 
 	connectionManager, err := connection.NewOFConnect()
 	if err != nil {
@@ -172,11 +167,23 @@ func main() {
 
 	c := openflow.NewController(connectionManager, nodeInformer, curNode.Name, podCIDR, defaultClusterCIDR)
 
+	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.OnAddVSwitch,
+		UpdateFunc: c.OnUpdateVSwitch,
+		DeleteFunc: c.OnDeleteVSwitch,
+	})
+
 	err = c.Initialize()
 	if err != nil {
 		klog.Errorf("error initializing controller: %v", err)
 		os.Exit(1)
 	}
+
+	informerFactory.WaitForCacheSync(stopCh)
+	kovsInformerFactory.WaitForCacheSync(stopCh)
+
+	informerFactory.Start(stopCh)
+	kovsInformerFactory.Start(stopCh)
 
 	// TODO: add stopCh based on signals
 	go connectionManager.ProcessQueue()
@@ -243,6 +250,10 @@ func setupBridgeIfNotExists() error {
 		return fmt.Errorf("failed to bring bridge %q up: %v", bridgeName, err)
 	}
 
+	return nil
+}
+
+func setSecureFailMode() error {
 	return nil
 }
 
