@@ -102,29 +102,21 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	// flows for table 0 - classification
 	//
 
-	// if a package matches the tunnel ID for a vswitch, send it straight to tableL3Forwarding
-	match := ofp13.NewOfpMatch()
-	match.Append(ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID)))
-	instruction = ofp13.NewOfpInstructionGotoTable(tableL3Forwarding)
-	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 150, 0, match,
-		[]ofp13.OfpInstruction{instruction})
-	flows = append(flows, flow)
-
 	// traffic in the local pod CIDR should go to tableL2Rewrites
 	// TODO: put this in a separate function for "local" flows
-	match = ofp13.NewOfpMatch()
+	match := ofp13.NewOfpMatch()
 	ipv4Match, err := newOxmIpv4SubnetDst(c.podCIDR)
 	if err != nil {
 		return nil, err
 	}
-	match.Append(ipv4Match)
 	match.Append(ofp13.NewOxmEthType(0x0800))
+	match.Append(ipv4Match)
 	instruction = ofp13.NewOfpInstructionGotoTable(tableL2Rewrites)
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 200, 0, match,
+	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 200, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
-	// traffic in the cluster CIDR should go to tableOverlay
+	// traffic in the cluster CIDR with a tunnel ID should go to tableL3Forwarding
 	// traffic to local pod CIDR should never reach here since priority for the
 	// flow directly above is higher
 	match = ofp13.NewOfpMatch()
@@ -132,8 +124,22 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	if err != nil {
 		return nil, err
 	}
-	match.Append(ipv4Match)
 	match.Append(ofp13.NewOxmEthType(0x0800))
+	match.Append(ipv4Match)
+	match.Append(ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID)))
+	instruction = ofp13.NewOfpInstructionGotoTable(tableL3Forwarding)
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 150, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	// traffic in the cluster CIDR without tunnel ID should go to tableOverlay
+	match = ofp13.NewOfpMatch()
+	ipv4Match, err = newOxmIpv4SubnetDst(c.clusterCIDR)
+	if err != nil {
+		return nil, err
+	}
+	match.Append(ofp13.NewOxmEthType(0x0800))
+	match.Append(ipv4Match)
 	instruction = ofp13.NewOfpInstructionGotoTable(tableOverlay)
 	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 100, 0, match,
 		[]ofp13.OfpInstruction{instruction})
@@ -154,10 +160,12 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 		match.Append(ipv4Match)
 		applyInstruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
 		tunnelField := ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID))
+
 		applyInstruction.Append(ofp13.NewOfpActionSetField(tunnelField))
+		gotoInstruction := ofp13.NewOfpInstructionGotoTable(tableL3Forwarding)
 
 		flow = ofp13.NewOfpFlowModAdd(0, 0, tableOverlay, 100, 0, match,
-			[]ofp13.OfpInstruction{applyInstruction})
+			[]ofp13.OfpInstruction{applyInstruction, gotoInstruction})
 		flows = append(flows, flow)
 	}
 
