@@ -32,9 +32,8 @@ type connectionManager interface {
 }
 
 type controller struct {
-	datapathID   uint64
-	connManager  connectionManager
-	vxlanHandler cache.ResourceEventHandler
+	datapathID  uint64
+	connManager connectionManager
 }
 
 func NewController(connManager connectionManager) *controller {
@@ -58,10 +57,6 @@ func (c *controller) Initialize() error {
 
 	klog.Info("OF_HELLO message sent to switch")
 	return nil
-}
-
-func (c *controller) VxLANHandler() cache.ResourceEventHandler {
-	return c.vxlanHandler
 }
 
 func (c *controller) Run() {
