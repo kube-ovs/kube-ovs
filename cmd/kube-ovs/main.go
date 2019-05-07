@@ -134,6 +134,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := setSecureFailMode(); err != nil {
+		klog.Errorf("failed to set fail-mode to 'secure': %v", err)
+		os.Exit(1)
+	}
+
 	if err := setupModulesAndSysctls(); err != nil {
 		klog.Errorf("failed to setup sysctls: %v", err)
 		os.Exit(1)
@@ -185,10 +190,11 @@ func main() {
 	informerFactory.Start(stopCh)
 	kovsInformerFactory.Start(stopCh)
 
-	// TODO: add stopCh based on signals
 	go connectionManager.ProcessQueue()
 	go connectionManager.Serve()
-	c.Run()
+	go c.Run()
+
+	<-stopCh
 }
 
 func netlinkAddrForCIDR(clusterCIDR, podCIDR string) (*netlink.Addr, error) {
@@ -254,6 +260,16 @@ func setupBridgeIfNotExists() error {
 }
 
 func setSecureFailMode() error {
+	command := []string{
+		"set-fail-mode", bridgeName, "secure",
+	}
+
+	out, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set fail mode for bridge %q to 'secure', err: %v, out: %q",
+			bridgeName, err, string(out))
+	}
+
 	return nil
 }
 
