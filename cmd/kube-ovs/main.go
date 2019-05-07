@@ -29,6 +29,8 @@ import (
 
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/coreos/go-iptables/iptables"
+	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
+	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
 	"github.com/kube-ovs/kube-ovs/controllers"
 	"github.com/vishvananda/netlink"
 
@@ -62,6 +64,12 @@ func main() {
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		klog.Errorf("error getting kubernetes client: %v", err)
+		os.Exit(1)
+	}
+
+	kovsClientset, err := kovs.NewForConfig(restVConfig)
+	if err != nil {
+		klog.Errorf("error getting kube-ovs clientset: %v", err)
 		os.Exit(1)
 	}
 
@@ -130,11 +138,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	stopCh := make(chan struct{})
+
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-term
+		close(stopCh)
+	}()
+
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
 
-	informerFactory.WaitForCacheSync(nil)
-	informerFactory.Start(nil)
+	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
+	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
+
+	informerFactory.WaitForCacheSync(stopCh)
+	kovsInformerFactory.WaitForCacheSync(stopCh)
+
+	informerFactory.Start(stopCh)
+	kovsInformerFactory.Start(stopCh)
 
 	connectionManager, err := controllers.NewOFConnect()
 	if err != nil {
