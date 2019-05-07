@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM debian:stretch-slim
 
 RUN apt update && apt install -y openvswitch-switch iptables
 
