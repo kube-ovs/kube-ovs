@@ -16,6 +16,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/json-iterator/go v1.1.6 // indirect
+	github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
@@ -24,7 +25,6 @@ require (
 	github.com/vishvananda/netlink v1.0.0
 	github.com/vishvananda/netns v0.0.0-20180720170159-13995c7128cc // indirect
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a // indirect
-	golang.org/x/net v0.0.0-20190311183353-d8887717615a // indirect
 	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
