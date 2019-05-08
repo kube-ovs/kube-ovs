@@ -52,6 +52,8 @@ github.com/mdlayher/raw
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
+# github.com/mostlygeek/arp v0.0.0-20170424181311-541a2129847a
+github.com/mostlygeek/arp
 # github.com/vishvananda/netlink v1.0.0
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl

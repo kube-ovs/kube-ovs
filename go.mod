@@ -18,6 +18,7 @@ require (
 	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/mostlygeek/arp v0.0.0-20170424181311-541a2129847a
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.1 // indirect
