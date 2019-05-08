@@ -38,7 +38,7 @@ github.com/googleapis/gnostic/extensions
 # github.com/hashicorp/golang-lru v0.5.1
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
-# github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
+# github.com/j-keck/arping v1.0.0
 github.com/j-keck/arping
 # github.com/json-iterator/go v1.1.6
 github.com/json-iterator/go

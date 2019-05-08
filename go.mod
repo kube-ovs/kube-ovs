@@ -14,7 +14,7 @@ require (
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
-	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
+	github.com/j-keck/arping v1.0.0
 	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717
 	github.com/modern-go/reflect2 v1.0.1 // indirect
