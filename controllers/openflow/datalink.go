@@ -98,8 +98,7 @@ func (c *controller) syncPod(pod *corev1.Pod) error {
 }
 
 func (c *controller) dataLinkFlowsForLocalIP(podIP string, pod *corev1.Pod) (*ofp13.OfpFlowMod, error) {
-	hwaddr, duration, err := arping.Ping(net.ParseIP(podIP))
-	klog.Infof("arp took %q", duration.String())
+	hwaddr, _, err := arping.Ping(net.ParseIP(podIP))
 	if err != nil {
 		return nil, fmt.Errorf("error arping ip %q, err: %v", err)
 	}
@@ -156,7 +155,7 @@ func (c *controller) addDataLinkFlowForGateway(ip string, bridge *net.Interface)
 	}
 
 	instruction.Append(ofp13.NewOfpActionSetField(ethDst))
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
 
 	return ofp13.NewOfpFlowModAdd(0, 0, tableL2Rewrites, 100, 0, match,
 		[]ofp13.OfpInstruction{instruction}), nil
