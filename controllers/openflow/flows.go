@@ -21,6 +21,8 @@ package openflow
 
 import (
 	"fmt"
+	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -44,7 +46,7 @@ const (
 	tableAudit                  = 100
 )
 
-func (c *controller) setupBaseFlows() error {
+func (c *controller) AddDefaultFlows(bridgeName string) error {
 	baseFlows := []*ofp13.OfpFlowMod{
 		baseFlows(tableClassification),
 		baseFlows(tableOverlay),
@@ -62,6 +64,17 @@ func (c *controller) setupBaseFlows() error {
 	for _, flow := range baseFlows {
 		c.connManager.Send(flow)
 	}
+
+	bridge, err := net.InterfaceByName(bridgeName)
+	if err != nil {
+		return err
+	}
+
+	gatewayFlow, err := c.addDataLinkFlowForGateway(c.gatewayIP, bridge)
+	if err != nil {
+		return fmt.Errorf("error getting datalink flow for gateway IP %q, err: %v", c.gatewayIP)
+	}
+	c.connManager.Send(gatewayFlow)
 
 	return nil
 }
@@ -95,6 +108,12 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	}
 
 	podCIDR := node.Spec.PodCIDR
+
+	vxlanPortName := "vxlan" + strconv.Itoa(int(vswitch.Spec.OverlayTunnelID))
+	vxlanOFPort, err := ofPortFromName(vxlanPortName)
+	if err != nil {
+		return nil, fmt.Errorf("error getting ofport for %q: %v", vxlanPortName, err)
+	}
 
 	var instruction ofp13.OfpInstruction
 
@@ -169,7 +188,64 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 		flows = append(flows, flow)
 	}
 
+	//
+	// flow for table 30 - L3 Forwarding
+	//
+
+	// If pod cidr is not for current node, output to vxlan overlay port
+	// If pod cidr is for current node, go straight to L2 rewrites
+	if !isCurrentNode {
+		ipv4Match, err = newOxmIpv4SubnetDst(podCIDR)
+		if err != nil {
+			return nil, err
+		}
+
+		match = ofp13.NewOfpMatch()
+		match.Append(ofp13.NewOxmEthType(0x0800))
+		match.Append(ipv4Match)
+		match.Append(ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID)))
+		applyInstruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+		applyInstruction.Append(ofp13.NewOfpActionOutput(vxlanOFPort, 0))
+
+		flow = ofp13.NewOfpFlowModAdd(0, 0, tableL3Forwarding, 100, 0, match,
+			[]ofp13.OfpInstruction{applyInstruction})
+		flows = append(flows, flow)
+	} else {
+		ipv4Match, err = newOxmIpv4SubnetDst(podCIDR)
+		if err != nil {
+			return nil, err
+		}
+
+		match = ofp13.NewOfpMatch()
+		match.Append(ofp13.NewOxmEthType(0x0800))
+		match.Append(ipv4Match)
+		match.Append(ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID)))
+		gotoInstruction := ofp13.NewOfpInstructionGotoTable(tableL2Rewrites)
+
+		flow = ofp13.NewOfpFlowModAdd(0, 0, tableL3Forwarding, 100, 0, match,
+			[]ofp13.OfpInstruction{gotoInstruction})
+		flows = append(flows, flow)
+	}
+
 	return flows, nil
+}
+
+func ofPortFromName(portName string) (uint32, error) {
+	command := []string{
+		"get", "Interface", portName, "ofport",
+	}
+
+	out, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get ofport for port %q, err: %v, out: %q", portName, err, out)
+	}
+
+	ofport, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, fmt.Errorf("error converting ofport output %q to int: %v", string(out), err)
+	}
+
+	return uint32(ofport), nil
 }
 
 func newOxmIpv4SubnetDst(dst string) (*ofp13.OxmIpv4, error) {
@@ -207,8 +283,6 @@ func (c *controller) OnAddVSwitch(obj interface{}) {
 	for _, flow := range flows {
 		c.connManager.Send(flow)
 	}
-
-	klog.Infof("received OnAdd event for vswitch %q", vswitch.Name)
 }
 
 func (c *controller) OnUpdateVSwitch(oldObj, newObj interface{}) {
@@ -226,8 +300,6 @@ func (c *controller) OnUpdateVSwitch(oldObj, newObj interface{}) {
 	for _, flow := range flows {
 		c.connManager.Send(flow)
 	}
-
-	klog.Infof("received OnUpdate event for vswitch %q", vswitch.Name)
 }
 
 func (c *controller) OnDeleteVSwitch(obj interface{}) {
@@ -235,6 +307,4 @@ func (c *controller) OnDeleteVSwitch(obj interface{}) {
 	if !ok {
 		return
 	}
-
-	klog.Infof("received OnDelete event for vswitch %q", vswitch.Name)
 }

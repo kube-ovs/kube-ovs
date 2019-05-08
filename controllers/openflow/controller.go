@@ -20,7 +20,11 @@ under the License.
 package openflow
 
 import (
+	"net"
+
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
+	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/mdlayher/arp"
 
 	v1informer "k8s.io/client-go/informers/core/v1"
 	v1lister "k8s.io/client-go/listers/core/v1"
@@ -37,21 +41,33 @@ type controller struct {
 	connManager connectionManager
 
 	nodeName    string
+	gatewayIP   string
 	podCIDR     string
 	clusterCIDR string
 
 	nodeLister v1lister.NodeLister
+	podLister  v1lister.PodLister
+
+	arp *arp.Client
 }
 
 func NewController(connManager connectionManager,
 	nodeInformer v1informer.NodeInformer,
+	podInformer v1informer.PodInformer, arp *arp.Client,
 	nodeName, podCIDR, clusterCIDR string) *controller {
+	// TODO: handle err
+	_, podIPNet, _ := net.ParseCIDR(podCIDR)
+	gatewayIP := ip.NextIP(podIPNet.IP.Mask(podIPNet.Mask)).String()
+
 	return &controller{
 		connManager: connManager,
 		nodeName:    nodeName,
+		gatewayIP:   gatewayIP,
 		podCIDR:     podCIDR,
 		clusterCIDR: clusterCIDR,
 		nodeLister:  nodeInformer.Lister(),
+		podLister:   podInformer.Lister(),
+		arp:         arp,
 	}
 }
 
@@ -60,11 +76,6 @@ func (c *controller) Initialize() error {
 	// with an open flow switch.
 	hello := ofp13.NewOfpHello()
 	c.connManager.Send(hello)
-
-	err := c.setupBaseFlows()
-	if err != nil {
-		return err
-	}
 
 	klog.Info("OF_HELLO message sent to switch")
 	return nil
