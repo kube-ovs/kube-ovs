@@ -29,6 +29,7 @@ rules:
       - services
       - nodes
       - endpoints
+      - pods
     verbs:
       - list
       - get
@@ -161,6 +162,7 @@ spec:
       labels:
         k8s-app: kube-ovs-controller
     spec:
+      hostNetwork: true
       serviceAccountName: kube-ovs
       containers:
       - name: kube-ovs-controller

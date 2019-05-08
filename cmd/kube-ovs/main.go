@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/coreos/go-iptables/iptables"
@@ -36,6 +37,8 @@ import (
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
 	"github.com/kube-ovs/kube-ovs/connection"
 	"github.com/kube-ovs/kube-ovs/controllers/openflow"
+	"github.com/kube-ovs/kube-ovs/controllers/ports"
+	"github.com/mdlayher/arp"
 	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -149,6 +152,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	bridge, err := net.InterfaceByName(bridgeName)
+	if err != nil {
+		klog.Errorf("failed to get bridge interface: %v", err)
+		os.Exit(1)
+	}
+
+	arpClient, err := arp.Dial(bridge)
+	if err != nil {
+		klog.Errorf("failed to create arp client: %v")
+		os.Exit(1)
+	}
+
+	// TODO: poll until VSwitchConfig exists for node since it won't exist
+	// for new clusters until kube-ovs-controller is running
+	vswitchConfig, err := kovsClientset.KubeovsV1alpha1().VSwitchConfigs().Get(curNode.Name, metav1.GetOptions{})
+	if err != nil {
+		klog.Errorf("error getting vswitch config for node: %v", err)
+		os.Exit(1)
+	}
+
 	stopCh := make(chan struct{})
 
 	term := make(chan os.Signal, 1)
@@ -158,10 +181,14 @@ func main() {
 		close(stopCh)
 	}()
 
-	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	// TODO: adjust resync period when queue is implemented
+	informerFactory := informers.NewSharedInformerFactory(clientset, time.Minute)
 	nodeInformer := informerFactory.Core().V1().Nodes()
+	podInformer := informerFactory.Core().V1().Pods()
+	endpointsInformer := informerFactory.Core().V1().Endpoints()
 
-	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, 0)
+	// TODO: adjust resync period when queue is implemented
+	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, time.Minute)
 	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
 
 	connectionManager, err := connection.NewOFConnect()
@@ -170,19 +197,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := openflow.NewController(connectionManager, nodeInformer, curNode.Name, podCIDR, defaultClusterCIDR)
+	c := openflow.NewController(connectionManager, nodeInformer, podInformer, arpClient, curNode.Name, podCIDR, defaultClusterCIDR)
 
 	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.OnAddVSwitch,
 		UpdateFunc: c.OnUpdateVSwitch,
 		DeleteFunc: c.OnDeleteVSwitch,
 	})
+	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.OnAddEndpoints,
+		UpdateFunc: c.OnUpdateEndpoints,
+		DeleteFunc: c.OnDeleteEndpoints,
+	})
 
 	err = c.Initialize()
 	if err != nil {
-		klog.Errorf("error initializing controller: %v", err)
+		klog.Errorf("error initializing openflow controller: %v", err)
 		os.Exit(1)
 	}
+
+	klog.Info("setting up default flows")
+	err = c.AddDefaultFlows(bridgeName)
+	if err != nil {
+		klog.Errorf("error adding default flows: %v", err)
+		os.Exit(1)
+	}
+
+	vxlanPorts := ports.NewVxlanPorts(bridgeName, vswitchConfig, vswitchInformer)
+	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    vxlanPorts.OnAddVSwitch,
+		UpdateFunc: vxlanPorts.OnUpdateVSwitch,
+		DeleteFunc: vxlanPorts.OnDeleteVSwitch,
+	})
 
 	informerFactory.WaitForCacheSync(stopCh)
 	kovsInformerFactory.WaitForCacheSync(stopCh)
