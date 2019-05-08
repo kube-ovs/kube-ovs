@@ -185,7 +185,6 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Minute)
 	nodeInformer := informerFactory.Core().V1().Nodes()
 	podInformer := informerFactory.Core().V1().Pods()
-	endpointsInformer := informerFactory.Core().V1().Endpoints()
 
 	// TODO: adjust resync period when queue is implemented
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, time.Minute)
@@ -204,10 +203,10 @@ func main() {
 		UpdateFunc: c.OnUpdateVSwitch,
 		DeleteFunc: c.OnDeleteVSwitch,
 	})
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.OnAddEndpoints,
-		UpdateFunc: c.OnUpdateEndpoints,
-		DeleteFunc: c.OnDeleteEndpoints,
+	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    c.OnAddPod,
+		UpdateFunc: c.OnUpdatePod,
+		DeleteFunc: c.OnDeletePod,
 	})
 
 	err = c.Initialize()
