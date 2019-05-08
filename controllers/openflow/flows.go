@@ -303,7 +303,7 @@ func (c *controller) OnUpdateVSwitch(oldObj, newObj interface{}) {
 }
 
 func (c *controller) OnDeleteVSwitch(obj interface{}) {
-	vswitch, ok := obj.(*v1alpha1.VSwitchConfig)
+	_, ok := obj.(*v1alpha1.VSwitchConfig)
 	if !ok {
 		return
 	}
