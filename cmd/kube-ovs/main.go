@@ -35,12 +35,14 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 	kovs "github.com/kube-ovs/kube-ovs/apis/generated/clientset/versioned"
 	kovsinformer "github.com/kube-ovs/kube-ovs/apis/generated/informers/externalversions"
+	kovsv1alpha1 "github.com/kube-ovs/kube-ovs/apis/kubeovs/v1alpha1"
 	"github.com/kube-ovs/kube-ovs/connection"
 	"github.com/kube-ovs/kube-ovs/controllers/openflow"
 	"github.com/kube-ovs/kube-ovs/controllers/ports"
 	"github.com/mdlayher/arp"
 	"github.com/vishvananda/netlink"
 
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -164,9 +166,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: poll until VSwitchConfig exists for node since it won't exist
-	// for new clusters until kube-ovs-controller is running
-	vswitchConfig, err := kovsClientset.KubeovsV1alpha1().VSwitchConfigs().Get(curNode.Name, metav1.GetOptions{})
+	vswitchConfig, err := waitForVSwitchConfig(kovsClientset, curNode.Name)
 	if err != nil {
 		klog.Errorf("error getting vswitch config for node: %v", err)
 		os.Exit(1)
@@ -189,6 +189,12 @@ func main() {
 	// TODO: adjust resync period when queue is implemented
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, time.Minute)
 	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
+
+	informerFactory.WaitForCacheSync(stopCh)
+	kovsInformerFactory.WaitForCacheSync(stopCh)
+
+	informerFactory.Start(stopCh)
+	kovsInformerFactory.Start(stopCh)
 
 	connectionManager, err := connection.NewOFConnect()
 	if err != nil {
@@ -229,17 +235,30 @@ func main() {
 		DeleteFunc: vxlanPorts.OnDeleteVSwitch,
 	})
 
-	informerFactory.WaitForCacheSync(stopCh)
-	kovsInformerFactory.WaitForCacheSync(stopCh)
-
-	informerFactory.Start(stopCh)
-	kovsInformerFactory.Start(stopCh)
-
 	go connectionManager.ProcessQueue()
 	go connectionManager.Serve()
 	go c.Run()
 
 	<-stopCh
+}
+
+func waitForVSwitchConfig(kovsClient kovs.Interface, nodeName string) (*kovsv1alpha1.VSwitchConfig, error) {
+	waitDuration := time.Minute
+	pollInterval := 5 * time.Second
+
+	for start := time.Now(); time.Since(start) < waitDuration; {
+		vswitchConfig, err := kovsClient.KubeovsV1alpha1().VSwitchConfigs().Get(nodeName, metav1.GetOptions{})
+		if err == nil {
+			return vswitchConfig, nil
+		}
+		if !apierr.IsNotFound(err) {
+			return nil, err
+		}
+
+		time.Sleep(pollInterval)
+	}
+
+	return nil, fmt.Errorf("vswitch config with name %q not found", nodeName)
 }
 
 func netlinkAddrForCIDR(clusterCIDR, podCIDR string) (*netlink.Addr, error) {
