@@ -25,7 +25,6 @@ import (
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/mdlayher/arp"
 
 	v1informer "k8s.io/client-go/informers/core/v1"
 	v1lister "k8s.io/client-go/listers/core/v1"
@@ -51,13 +50,11 @@ type controller struct {
 
 	podNetSpecMap podNetSpecMap
 	netSpecLock   sync.Mutex
-
-	arp *arp.Client
 }
 
 func NewController(connManager connectionManager,
 	nodeInformer v1informer.NodeInformer,
-	podInformer v1informer.PodInformer, arp *arp.Client,
+	podInformer v1informer.PodInformer,
 	nodeName, podCIDR, clusterCIDR string) *controller {
 	// TODO: handle err
 	_, podIPNet, _ := net.ParseCIDR(podCIDR)
@@ -72,7 +69,6 @@ func NewController(connManager connectionManager,
 		nodeLister:    nodeInformer.Lister(),
 		podLister:     podInformer.Lister(),
 		podNetSpecMap: make(podNetSpecMap),
-		arp:           arp,
 	}
 }
 

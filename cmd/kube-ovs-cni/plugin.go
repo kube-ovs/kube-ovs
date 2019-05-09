@@ -131,7 +131,7 @@ func getPodInfo() (string, string, error) {
 
 // addPort adds port to a bridge, also adding the container ID
 // in the external-ids column of the ports table
-func addPort(bridgeName, port, netNS, podNamespace, podName string) error {
+func addPort(bridgeName, port, containerMac, netNS, podNamespace, podName string) error {
 	commands := []string{
 		"--may-exist", "add-port", bridgeName, port,
 		"--", "set", "port", port,
@@ -142,6 +142,7 @@ func addPort(bridgeName, port, netNS, podNamespace, podName string) error {
 		fmt.Sprintf("external-ids:netns=%s", normalizedNetNS(netNS)),
 		fmt.Sprintf("external-ids:k8s_pod_namespace=%s", podNamespace),
 		fmt.Sprintf("external-ids:k8s_pod_name=%s", podName),
+		"--", "set", "port", port, fmt.Sprintf("mac=\"%s\"", containerMac),
 	}
 
 	_, err := exec.Command("ovs-vsctl", commands...).CombinedOutput()
@@ -373,7 +374,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	err = addPort(netConf.BridgeName, hostInterface.Name, args.Netns, podNamespace, podName)
+	err = addPort(netConf.BridgeName, hostInterface.Name, containerInterface.Mac, args.Netns, podNamespace, podName)
 	if err != nil {
 		return err
 	}

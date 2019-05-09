@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
-	"github.com/j-keck/arping"
 )
 
 type podNetSpec struct {
@@ -37,6 +37,11 @@ type podNetSpec struct {
 	ip      string
 }
 
+// podNetSpecMap provides a cache of pods to their network spec
+// such as IPs and Mac addresses. A local cache is required since
+// we won't be able to fetch IPs from apiserver once the pod is deleted
+// TODO: use switch groups to group all pods for a flow together
+// so they can be deleted together by reference
 type podNetSpecMap map[string]podNetSpec
 
 func (c *controller) OnAddPod(obj interface{}) {
@@ -46,7 +51,7 @@ func (c *controller) OnAddPod(obj interface{}) {
 	}
 
 	if err := c.syncPod(pod); err != nil {
-		klog.Errorf("error syncing endpoint: %v", err)
+		klog.Errorf("error syncing pod: %v", err)
 		return
 	}
 }
@@ -58,7 +63,7 @@ func (c *controller) OnUpdatePod(oldObj, newObj interface{}) {
 	}
 
 	if err := c.syncPod(pod); err != nil {
-		klog.Errorf("error syncing endpoint: %v", err)
+		klog.Errorf("error syncing pod : %v", err)
 		return
 	}
 }
@@ -119,7 +124,7 @@ func (c *controller) syncPod(pod *corev1.Pod) error {
 
 	flows, err := c.addDataLinkFlowsForLocalIP(pod, podNetSpec)
 	if err != nil {
-		return fmt.Errorf("error getting data link flows for IP %q", podIP)
+		return fmt.Errorf("error getting data link flows for IP %q, err: %v", podIP, err)
 	}
 
 	for _, flow := range flows {
@@ -130,6 +135,9 @@ func (c *controller) syncPod(pod *corev1.Pod) error {
 }
 
 func (c *controller) netSpecFromCache(pod *corev1.Pod) (podNetSpec, error) {
+	c.netSpecLock.Lock()
+	defer c.netSpecLock.Unlock()
+
 	cacheKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	netSpec, exists := c.podNetSpecMap[cacheKey]
 	if exists {
@@ -151,15 +159,8 @@ func (c *controller) netSpecForPod(pod *corev1.Pod) (podNetSpec, error) {
 		return podNetSpec{}, fmt.Errorf("pod %q has no ip", pod.Name)
 	}
 
-	hwAddr, _, err := arping.Ping(net.ParseIP(podIP))
-	if err != nil {
-		return podNetSpec{}, fmt.Errorf("error arping ip %q, err: %v", err)
-	}
-	macAddr := hwAddr.String()
-
 	return podNetSpec{
-		macAddr: macAddr,
-		ip:      podIP,
+		ip: podIP,
 	}, nil
 }
 
@@ -175,12 +176,17 @@ func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 	flows := []*ofp13.OfpFlowMod{}
 
 	podIP := netSpec.ip
-	podMacAddr := netSpec.macAddr
 
 	portName, err := findPort(pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error finding port for pod %q, err: %v", pod.Name, err)
 	}
+
+	podMacAddr, err := macAddrFromPort(portName)
+	if err != nil {
+		return nil, fmt.Errorf("error getting mac address for pod %q, err: %v", pod.Name, err)
+	}
+	klog.Infof("found pod mac addr %q for pod %q with port %q", podMacAddr, pod.Name, portName)
 
 	ofport, err := ofPortFromName(portName)
 	if err != nil {
@@ -301,4 +307,27 @@ func findPort(podNamespace, podName string) (string, error) {
 
 	portName := dbData.Data[0][0]
 	return portName, nil
+}
+
+func macAddrFromPort(portName string) (string, error) {
+	commands := []string{
+		"get", "port", portName, "mac",
+	}
+
+	out, err := exec.Command("ovs-vsctl", commands...).Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get MAC address from OVS port for %q, err: %v, out: %q",
+			portName, err, string(out))
+	}
+
+	// TODO: validate mac address
+	macAddr := strings.TrimSpace(string(out))
+	if len(macAddr) > 0 && macAddr[0] == '"' {
+		macAddr = macAddr[1:]
+	}
+	if len(macAddr) > 0 && macAddr[len(macAddr)-1] == '"' {
+		macAddr = macAddr[:len(macAddr)-1]
+	}
+
+	return macAddr, nil
 }

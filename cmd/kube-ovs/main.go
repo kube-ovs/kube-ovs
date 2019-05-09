@@ -39,7 +39,6 @@ import (
 	"github.com/kube-ovs/kube-ovs/connection"
 	"github.com/kube-ovs/kube-ovs/controllers/openflow"
 	"github.com/kube-ovs/kube-ovs/controllers/ports"
-	"github.com/mdlayher/arp"
 	"github.com/vishvananda/netlink"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
@@ -154,18 +153,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	bridge, err := net.InterfaceByName(bridgeName)
-	if err != nil {
-		klog.Errorf("failed to get bridge interface: %v", err)
-		os.Exit(1)
-	}
-
-	arpClient, err := arp.Dial(bridge)
-	if err != nil {
-		klog.Errorf("failed to create arp client: %v")
-		os.Exit(1)
-	}
-
 	vswitchConfig, err := waitForVSwitchConfig(kovsClientset, curNode.Name)
 	if err != nil {
 		klog.Errorf("error getting vswitch config for node: %v", err)
@@ -190,19 +177,13 @@ func main() {
 	kovsInformerFactory := kovsinformer.NewSharedInformerFactory(kovsClientset, time.Minute)
 	vswitchInformer := kovsInformerFactory.Kubeovs().V1alpha1().VSwitchConfigs()
 
-	informerFactory.WaitForCacheSync(stopCh)
-	kovsInformerFactory.WaitForCacheSync(stopCh)
-
-	informerFactory.Start(stopCh)
-	kovsInformerFactory.Start(stopCh)
-
 	connectionManager, err := connection.NewOFConnect()
 	if err != nil {
 		klog.Errorf("error starting open flow connection manager: %v", err)
 		os.Exit(1)
 	}
 
-	c := openflow.NewController(connectionManager, nodeInformer, podInformer, arpClient, curNode.Name, podCIDR, defaultClusterCIDR)
+	c := openflow.NewController(connectionManager, nodeInformer, podInformer, curNode.Name, podCIDR, defaultClusterCIDR)
 
 	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.OnAddVSwitch,
@@ -234,6 +215,12 @@ func main() {
 		UpdateFunc: vxlanPorts.OnUpdateVSwitch,
 		DeleteFunc: vxlanPorts.OnDeleteVSwitch,
 	})
+
+	informerFactory.WaitForCacheSync(stopCh)
+	kovsInformerFactory.WaitForCacheSync(stopCh)
+
+	informerFactory.Start(stopCh)
+	kovsInformerFactory.Start(stopCh)
 
 	go connectionManager.ProcessQueue()
 	go connectionManager.Serve()
