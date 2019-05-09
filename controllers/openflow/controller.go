@@ -21,6 +21,7 @@ package openflow
 
 import (
 	"net"
+	"sync"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/containernetworking/plugins/pkg/ip"
@@ -48,6 +49,9 @@ type controller struct {
 	nodeLister v1lister.NodeLister
 	podLister  v1lister.PodLister
 
+	podNetSpecMap podNetSpecMap
+	netSpecLock   sync.Mutex
+
 	arp *arp.Client
 }
 
@@ -60,14 +64,15 @@ func NewController(connManager connectionManager,
 	gatewayIP := ip.NextIP(podIPNet.IP.Mask(podIPNet.Mask)).String()
 
 	return &controller{
-		connManager: connManager,
-		nodeName:    nodeName,
-		gatewayIP:   gatewayIP,
-		podCIDR:     podCIDR,
-		clusterCIDR: clusterCIDR,
-		nodeLister:  nodeInformer.Lister(),
-		podLister:   podInformer.Lister(),
-		arp:         arp,
+		connManager:   connManager,
+		nodeName:      nodeName,
+		gatewayIP:     gatewayIP,
+		podCIDR:       podCIDR,
+		clusterCIDR:   clusterCIDR,
+		nodeLister:    nodeInformer.Lister(),
+		podLister:     podInformer.Lister(),
+		podNetSpecMap: make(podNetSpecMap),
+		arp:           arp,
 	}
 }
 
