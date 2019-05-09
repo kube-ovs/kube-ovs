@@ -63,6 +63,37 @@ subjects:
 
 ---
 apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kube-ovs-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  updateStrategy: 
+    type: RollingUpdate
+  serviceName: kube-ovs-controller
+  selector:
+    matchLabels:
+      k8s-app: kube-ovs-controller
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-ovs-controller
+    spec:
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        effect: NoSchedule
+      hostNetwork: true
+      serviceAccountName: kube-ovs
+      containers:
+      - name: kube-ovs-controller
+        image: andrewsykim/kube-ovs:latest
+        imagePullPolicy: Always
+        command:
+         - "/bin/kube-ovs-controller"
+
+---
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   labels:
@@ -144,29 +175,3 @@ spec:
       - name: lib-modules
         hostPath:
           path: /lib/modules
-
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: kube-ovs-controller
-  namespace: kube-system
-spec:
-  replicas: 1
-  serviceName: kube-ovs-controller
-  selector:
-    matchLabels:
-      k8s-app: kube-ovs-controller
-  template:
-    metadata:
-      labels:
-        k8s-app: kube-ovs-controller
-    spec:
-      hostNetwork: true
-      serviceAccountName: kube-ovs
-      containers:
-      - name: kube-ovs-controller
-        image: andrewsykim/kube-ovs:latest
-        imagePullPolicy: Always
-        command:
-         - "/bin/kube-ovs-controller"
