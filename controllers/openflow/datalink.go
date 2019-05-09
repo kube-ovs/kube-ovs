@@ -210,28 +210,6 @@ func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
-	arpMatch, err := ofp13.NewOxmArpTpa(podIP)
-	if err != nil {
-		return nil, fmt.Errorf("error getting arp destination match: %v", err)
-	}
-	// add flow for this endpoint
-	match = ofp13.NewOfpMatch()
-	match.Append(ofp13.NewOxmEthType(0x0806))
-	match.Append(arpMatch)
-
-	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	ethDst, err = ofp13.NewOxmEthDst(podMacAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	instruction.Append(ofp13.NewOfpActionSetField(ethDst))
-	instruction.Append(ofp13.NewOfpActionOutput(ofport, 0))
-
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableL2Rewrites, 100, 0, match,
-		[]ofp13.OfpInstruction{instruction})
-	flows = append(flows, flow)
-
 	return flows, nil
 }
 
