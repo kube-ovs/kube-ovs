@@ -380,5 +380,13 @@ func setupModulesAndSysctls() error {
 		return fmt.Errorf("failed to set /proc/sys/net/bridge/bridge-nf-call-iptables, err: %v", err)
 	}
 
+	if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_ignore", []byte(strconv.Itoa(1)), 0640); err != nil {
+		return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_ignore, err: %v", err)
+	}
+
+	if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_announce", []byte(strconv.Itoa(2)), 0640); err != nil {
+		return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_announce, err: %v", err)
+	}
+
 	return nil
 }
