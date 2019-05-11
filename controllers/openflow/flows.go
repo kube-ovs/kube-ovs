@@ -35,6 +35,7 @@ import (
 const (
 	tableClassification         = 0
 	tableOverlay                = 10
+	tableLocalARP               = 15
 	tableL3Rewrites             = 20
 	tableL3Forwarding           = 30
 	tableL2Rewrites             = 40
