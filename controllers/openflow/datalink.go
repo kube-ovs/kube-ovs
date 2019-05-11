@@ -186,7 +186,6 @@ func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 	if err != nil {
 		return nil, fmt.Errorf("error getting mac address for pod %q, err: %v", pod.Name, err)
 	}
-	klog.Infof("found pod mac addr %q for pod %q with port %q", podMacAddr, pod.Name, portName)
 
 	ofport, err := ofPortFromName(portName)
 	if err != nil {
