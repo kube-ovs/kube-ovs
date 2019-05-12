@@ -25,17 +25,19 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"k8s.io/klog"
 )
 
 func GenerateARPReply(data []byte, gatewayMAC, gatewayIP string) ([]byte, error) {
-	p := gopacket.NewPacket(data, layers.LinkTypeEthernet, gopacket.Default)
+	p := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.Default)
 
-	// ethLayer := p.Layer(layers.LayerTypeEthernet)
-	// if ethLayer == nil {
-	//	return nil, errors.New("couldn't get ethernet layer")
-	// }
+	ethLayer := p.Layer(layers.LayerTypeEthernet)
+	if ethLayer == nil {
+		return nil, errors.New("couldn't get ethernet layer")
+	}
 
-	// ethData := ethLayer.(*layers.Ethernet)
+	_ = ethLayer.(*layers.Ethernet)
 
 	arpLayer := p.Layer(layers.LayerTypeARP)
 	if arpLayer == nil {

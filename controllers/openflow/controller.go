@@ -126,7 +126,6 @@ func (c *controller) Run() {
 				klog.Errorf("error parsing ARP packet: %v", err)
 				continue
 			}
-			klog.Infof("arp reply going to in-port %d: %#x", inPort, arpReply)
 
 			packetOut := ofp13.NewOfpPacketOut(
 				packetIn.BufferId,

@@ -258,19 +258,18 @@ func (c *controller) addDataLinkFlowForGateway(ip string, bridge *net.Interface)
 		return nil, fmt.Errorf("error getting IPv4Dst match: %v", err)
 	}
 
-	// add flow for this endpoint
 	match := ofp13.NewOfpMatch()
 	match.Append(ofp13.NewOxmEthType(0x0800))
 	match.Append(ipv4Match)
 
 	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
 
-	// ethDst, err := ofp13.NewOxmEthDst(bridge.HardwareAddr.String())
-	// if err != nil {
-	//	return nil, err
-	// }
+	ethDst, err := ofp13.NewOxmEthDst(bridge.HardwareAddr.String())
+	if err != nil {
+		return nil, err
+	}
 
-	// instruction.Append(ofp13.NewOfpActionSetField(ethDst))
+	instruction.Append(ofp13.NewOfpActionSetField(ethDst))
 	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
 
 	return ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
@@ -322,8 +321,24 @@ func (c *controller) arpResponder(gatewayIP, podCIDR, clusterCIDR string) ([]*of
 	match.Append(arpMatch)
 
 	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_CONTROLLER, 0))
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_CONTROLLER, 65535))
 	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 50, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	arpMatch, err = newOxmArpDst(clusterCIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	match = ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(ofp13.NewOxmArpOp(2))
+	match.Append(arpMatch)
+
+	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
