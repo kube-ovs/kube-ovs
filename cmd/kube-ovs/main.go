@@ -159,6 +159,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	bridge, err := net.InterfaceByName(bridgeName)
+	if err != nil {
+		klog.Errorf("error getting %q: err: %v", bridgeName, err)
+		os.Exit(1)
+	}
+
 	stopCh := make(chan struct{})
 
 	term := make(chan os.Signal, 1)
@@ -183,7 +189,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := openflow.NewController(connectionManager, nodeInformer, podInformer, curNode.Name, podCIDR, defaultClusterCIDR)
+	c := openflow.NewController(connectionManager, nodeInformer, podInformer, bridge.HardwareAddr.String(), curNode.Name, podCIDR, defaultClusterCIDR)
 
 	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.OnAddVSwitch,
@@ -386,13 +392,13 @@ func setupModulesAndSysctls() error {
 		return fmt.Errorf("failed to set /proc/sys/net/bridge/bridge-nf-call-iptables, err: %v", err)
 	}
 
-	if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_ignore", []byte(strconv.Itoa(1)), 0640); err != nil {
-		return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_ignore, err: %v", err)
-	}
+	// if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_ignore", []byte(strconv.Itoa(0)), 0640); err != nil {
+	//	return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_ignore, err: %v", err)
+	//}
 
-	if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_announce", []byte(strconv.Itoa(2)), 0640); err != nil {
-		return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_announce, err: %v", err)
-	}
+	//if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_announce", []byte(strconv.Itoa(0)), 0640); err != nil {
+	//	return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_announce, err: %v", err)
+	//}
 
 	return nil
 }

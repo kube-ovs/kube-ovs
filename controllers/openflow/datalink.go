@@ -264,17 +264,70 @@ func (c *controller) addDataLinkFlowForGateway(ip string, bridge *net.Interface)
 	match.Append(ipv4Match)
 
 	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	ethDst, err := ofp13.NewOxmEthDst(bridge.HardwareAddr.String())
+
+	// ethDst, err := ofp13.NewOxmEthDst(bridge.HardwareAddr.String())
+	// if err != nil {
+	//	return nil, err
+	// }
+
+	// instruction.Append(ofp13.NewOfpActionSetField(ethDst))
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
+
+	return ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
+		[]ofp13.OfpInstruction{instruction}), nil
+
+}
+
+func (c *controller) arpResponder(gatewayIP, podCIDR, clusterCIDR string) ([]*ofp13.OfpFlowMod, error) {
+	flows := []*ofp13.OfpFlowMod{}
+
+	arpMatch, err := ofp13.NewOxmArpTpa(gatewayIP)
 	if err != nil {
 		return nil, err
 	}
 
-	instruction.Append(ofp13.NewOfpActionSetField(ethDst))
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
+	match := ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(arpMatch)
 
-	return ofp13.NewOfpFlowModAdd(0, 0, tableL2Rewrites, 50, 0, match,
-		[]ofp13.OfpInstruction{instruction}), nil
+	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
 
+	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 150, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	arpMatch, err = newOxmArpDst(podCIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	match = ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(arpMatch)
+
+	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 100, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	arpMatch, err = newOxmArpDst(clusterCIDR)
+	if err != nil {
+		return nil, err
+	}
+
+	match = ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(arpMatch)
+
+	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_CONTROLLER, 0))
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 50, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	return flows, nil
 }
 
 func findPort(podNamespace, podName string) (string, error) {

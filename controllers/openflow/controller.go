@@ -20,11 +20,13 @@ under the License.
 package openflow
 
 import (
+	"errors"
 	"net"
 	"sync"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/kube-ovs/kube-ovs/arp"
 
 	v1informer "k8s.io/client-go/informers/core/v1"
 	v1lister "k8s.io/client-go/listers/core/v1"
@@ -42,6 +44,7 @@ type controller struct {
 
 	nodeName    string
 	gatewayIP   string
+	gatewayMAC  string
 	podCIDR     string
 	clusterCIDR string
 
@@ -55,7 +58,7 @@ type controller struct {
 func NewController(connManager connectionManager,
 	nodeInformer v1informer.NodeInformer,
 	podInformer v1informer.PodInformer,
-	nodeName, podCIDR, clusterCIDR string) *controller {
+	gatewayMAC, nodeName, podCIDR, clusterCIDR string) *controller {
 	// TODO: handle err
 	_, podIPNet, _ := net.ParseCIDR(podCIDR)
 	gatewayIP := ip.NextIP(podIPNet.IP.Mask(podIPNet.Mask)).String()
@@ -64,6 +67,7 @@ func NewController(connManager connectionManager,
 		connManager:   connManager,
 		nodeName:      nodeName,
 		gatewayIP:     gatewayIP,
+		gatewayMAC:    gatewayMAC,
 		podCIDR:       podCIDR,
 		clusterCIDR:   clusterCIDR,
 		nodeLister:    nodeInformer.Lister(),
@@ -108,7 +112,46 @@ func (c *controller) Run() {
 			c.datapathID = msgVal.DatapathId
 			klog.Infof("set datapath ID to %d", c.datapathID)
 
+		case *ofp13.OfpPacketIn:
+			packetIn := msgVal
+
+			inPort, err := inPortForPacket(packetIn)
+			if err != nil {
+				klog.Errorf("error fetching in port: %v", err)
+				continue
+			}
+
+			arpReply, err := arp.GenerateARPReply(packetIn.Data, c.gatewayMAC, c.gatewayIP)
+			if err != nil {
+				klog.Errorf("error parsing ARP packet: %v", err)
+				continue
+			}
+			klog.Infof("arp reply going to in-port %d: %#x", inPort, arpReply)
+
+			packetOut := ofp13.NewOfpPacketOut(
+				packetIn.BufferId,
+				ofp13.OFPP_CONTROLLER,
+				[]ofp13.OfpAction{ofp13.NewOfpActionOutput(inPort, 0)},
+				arpReply,
+			)
+			c.connManager.Send(packetOut)
+
 		default:
 		}
 	}
+}
+
+func inPortForPacket(packetIn *ofp13.OfpPacketIn) (uint32, error) {
+	fields := packetIn.Match.OxmFields
+	for _, field := range fields {
+		if field.OxmField() == ofp13.OFPXMT_OFB_IN_PORT {
+			inPort, ok := field.(*ofp13.OxmInPort)
+			if !ok {
+				return 0, errors.New("could not fetch OxmInPort")
+			}
+			return inPort.Value, nil
+		}
+	}
+
+	return 0, errors.New("could not find in port match for packet")
 }

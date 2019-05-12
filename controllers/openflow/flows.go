@@ -67,6 +67,16 @@ func (c *controller) AddDefaultFlows(bridgeName string) error {
 	}
 
 	c.connManager.Send(gatewayFlow)
+
+	arpFlows, err := c.arpResponder(c.gatewayIP, c.podCIDR, c.clusterCIDR)
+	if err != nil {
+		return fmt.Errorf("error adding arp responder flows: %v", err)
+	}
+
+	for _, flow := range arpFlows {
+		c.connManager.Send(flow)
+	}
+
 	return nil
 }
 
@@ -74,7 +84,7 @@ func (c *controller) AddDefaultFlows(bridgeName string) error {
 // added by default to each kube-ovs table
 func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
 	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Actions = append(instruction.Actions, ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
+	instruction.Actions = append(instruction.Actions, ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
 
 	return ofp13.NewOfpFlowModAdd(0, 0, tableID, 0, 0, ofp13.NewOfpMatch(),
 		[]ofp13.OfpInstruction{instruction})
