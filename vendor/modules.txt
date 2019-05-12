@@ -31,6 +31,9 @@ github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/gofuzz v1.0.0
 github.com/google/gofuzz
+# github.com/google/gopacket v1.1.17-0.20190509173910-6d3e2615da4e
+github.com/google/gopacket/layers
+github.com/google/gopacket
 # github.com/googleapis/gnostic v0.2.0
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
@@ -42,18 +45,10 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/j-keck/arping
 # github.com/json-iterator/go v1.1.6
 github.com/json-iterator/go
-# github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717
-github.com/mdlayher/arp
-# github.com/mdlayher/ethernet v0.0.0-20190313224307-5b5fc417d966
-github.com/mdlayher/ethernet
-# github.com/mdlayher/raw v0.0.0-20190313224157-43dbcdd7739d
-github.com/mdlayher/raw
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
-# github.com/mostlygeek/arp v0.0.0-20170424181311-541a2129847a
-github.com/mostlygeek/arp
 # github.com/vishvananda/netlink v1.0.0
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl
@@ -61,18 +56,17 @@ github.com/vishvananda/netlink/nl
 github.com/vishvananda/netns
 # golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20190313220215-9f648a60d977
+# golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
 golang.org/x/net/http2
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
-golang.org/x/net/bpf
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/context
 # golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e
+# golang.org/x/sys v0.0.0-20190405154228-4b34438f7a67
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.0

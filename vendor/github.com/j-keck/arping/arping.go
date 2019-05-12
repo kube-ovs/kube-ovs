@@ -60,12 +60,12 @@ package arping
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"time"
+	"fmt"
 )
 
 var (

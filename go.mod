@@ -12,13 +12,14 @@ require (
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
+	github.com/google/gopacket v1.1.17-0.20190509173910-6d3e2615da4e
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/j-keck/arping v1.0.0
 	github.com/json-iterator/go v1.1.6 // indirect
-	github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717
+	github.com/mdlayher/arp v0.0.0-20190313224443-98a83c8a2717 // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/mostlygeek/arp v0.0.0-20170424181311-541a2129847a
+	github.com/mostlygeek/arp v0.0.0-20170424181311-541a2129847a // indirect
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.1 // indirect
