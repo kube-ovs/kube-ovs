@@ -53,10 +53,11 @@ import (
 const (
 	cniConfigPath           = "/etc/cni/net.d/10-kube-ovs.json"
 	bridgeName              = "kube-ovs0"
+	hostLocalPort           = "host-local"
 	defaultControllerTarget = "tcp:127.0.0.1:6653"
 
 	// TODO: set this via a CLI flag
-	defaultClusterCIDR = "100.96.0.0/11"
+	defaultClusterCIDR = "172.20.0.0/16"
 	// TODO: set this via a CLI flag
 	defaultServiceCIDR = "100.64.0.0/13"
 )
@@ -115,7 +116,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	br, err := netlink.LinkByName(bridgeName)
+	err = setupHostLocalInternalPort()
+	if err != nil {
+		klog.Errorf("failed to setup host-local port: %v", err)
+		os.Exit(1)
+	}
+
+	hostLocalLink, err := netlink.LinkByName(hostLocalPort)
 	if err != nil {
 		klog.Errorf("failed to get bridge %q, err: %v", bridgeName, err)
 		os.Exit(1)
@@ -127,7 +134,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := netlink.AddrReplace(br, addr); err != nil {
+	if err := netlink.AddrReplace(hostLocalLink, addr); err != nil {
 		klog.Errorf("could not add addr %q to bridge %q, err: %v",
 			podCIDR, bridgeName, err)
 		os.Exit(1)
@@ -159,7 +166,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	bridge, err := net.InterfaceByName(bridgeName)
+	hostLocalInterface, err := net.InterfaceByName(hostLocalPort)
 	if err != nil {
 		klog.Errorf("error getting %q: err: %v", bridgeName, err)
 		os.Exit(1)
@@ -189,7 +196,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := openflow.NewController(connectionManager, nodeInformer, podInformer, bridge.HardwareAddr.String(), curNode.Name, podCIDR, defaultClusterCIDR)
+	c := openflow.NewController(connectionManager, nodeInformer, podInformer, hostLocalInterface.HardwareAddr.String(), curNode.Name, podCIDR, defaultClusterCIDR)
 
 	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.OnAddVSwitch,
@@ -316,6 +323,29 @@ func setupBridgeIfNotExists() error {
 	return nil
 }
 
+func setupHostLocalInternalPort() error {
+	command := []string{
+		"--may-exist", "add-port", bridgeName, hostLocalPort,
+		"--", "set", "Interface", hostLocalPort, "type=internal",
+	}
+
+	out, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to setup host-local port, err: %v, output: %q", err, out)
+	}
+
+	hostLocal, err := netlink.LinkByName(hostLocalPort)
+	if err != nil {
+		return fmt.Errorf("could not lookup %q: %v", hostLocalPort, err)
+	}
+
+	if err := netlink.LinkSetUp(hostLocal); err != nil {
+		return fmt.Errorf("failed to bring bridge %q up: %v", hostLocalPort, err)
+	}
+
+	return nil
+}
+
 func setSecureFailMode() error {
 	command := []string{
 		"set-fail-mode", bridgeName, "secure",
@@ -391,14 +421,6 @@ func setupModulesAndSysctls() error {
 	if err := ioutil.WriteFile("/proc/sys/net/bridge/bridge-nf-call-iptables", []byte(strconv.Itoa(1)), 0640); err != nil {
 		return fmt.Errorf("failed to set /proc/sys/net/bridge/bridge-nf-call-iptables, err: %v", err)
 	}
-
-	// if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_ignore", []byte(strconv.Itoa(0)), 0640); err != nil {
-	//	return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_ignore, err: %v", err)
-	//}
-
-	//if err := ioutil.WriteFile("/proc/sys/net/ipv4/conf/all/arp_announce", []byte(strconv.Itoa(0)), 0640); err != nil {
-	//	return fmt.Errorf("failed to set /proc/sys/net/ipv4/conf/all/arp_announce, err: %v", err)
-	//}
 
 	return nil
 }

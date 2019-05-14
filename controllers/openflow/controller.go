@@ -26,7 +26,6 @@ import (
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/kube-ovs/kube-ovs/arp"
 
 	v1informer "k8s.io/client-go/informers/core/v1"
 	v1lister "k8s.io/client-go/listers/core/v1"
@@ -111,29 +110,6 @@ func (c *controller) Run() {
 		case *ofp13.OfpSwitchFeatures:
 			c.datapathID = msgVal.DatapathId
 			klog.Infof("set datapath ID to %d", c.datapathID)
-
-		case *ofp13.OfpPacketIn:
-			packetIn := msgVal
-
-			inPort, err := inPortForPacket(packetIn)
-			if err != nil {
-				klog.Errorf("error fetching in port: %v", err)
-				continue
-			}
-
-			arpReply, err := arp.GenerateARPReply(packetIn.Data, c.gatewayMAC, c.gatewayIP)
-			if err != nil {
-				klog.Errorf("error parsing ARP packet: %v", err)
-				continue
-			}
-
-			packetOut := ofp13.NewOfpPacketOut(
-				packetIn.BufferId,
-				ofp13.OFPP_CONTROLLER,
-				[]ofp13.OfpAction{ofp13.NewOfpActionOutput(inPort, 0)},
-				arpReply,
-			)
-			c.connManager.Send(packetOut)
 
 		default:
 		}

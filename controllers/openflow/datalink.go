@@ -32,6 +32,10 @@ import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 )
 
+const (
+	hostLocalPort = "host-local"
+)
+
 type podNetSpec struct {
 	macAddr string
 	ip      string
@@ -215,6 +219,22 @@ func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
+	// ARP flow for pod
+	arpMatch, err := ofp13.NewOxmArpTpa(podIP)
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPv4Dst match: %v", err)
+	}
+	match = ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(arpMatch)
+
+	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofport, 0))
+
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableL2Rewrites, 100, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
 	return flows, nil
 }
 
@@ -252,8 +272,15 @@ func (c *controller) delDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 	return flows, nil
 }
 
-func (c *controller) addDataLinkFlowForGateway(ip string, bridge *net.Interface) (*ofp13.OfpFlowMod, error) {
-	ipv4Match, err := ofp13.NewOxmIpv4Dst(ip)
+func (c *controller) addDataLinkFlowForGateway() ([]*ofp13.OfpFlowMod, error) {
+	flows := []*ofp13.OfpFlowMod{}
+
+	ofport, err := ofPortFromName(hostLocalPort)
+	if err != nil {
+		return nil, fmt.Errorf("error getting ofport for port %q, err: %v", hostLocalPort, err)
+	}
+
+	ipv4Match, err := ofp13.NewOxmIpv4Dst(c.gatewayIP)
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPv4Dst match: %v", err)
 	}
@@ -264,39 +291,51 @@ func (c *controller) addDataLinkFlowForGateway(ip string, bridge *net.Interface)
 
 	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
 
-	ethDst, err := ofp13.NewOxmEthDst(bridge.HardwareAddr.String())
+	ethDst, err := ofp13.NewOxmEthDst(c.gatewayMAC)
 	if err != nil {
 		return nil, err
 	}
 
 	instruction.Append(ofp13.NewOfpActionSetField(ethDst))
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
+	instruction.Append(ofp13.NewOfpActionOutput(ofport, 0))
 
-	return ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
-		[]ofp13.OfpInstruction{instruction}), nil
+	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	arpMatch, err := ofp13.NewOxmArpTpa(c.gatewayIP)
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPv4Dst match: %v", err)
+	}
+
+	match = ofp13.NewOfpMatch()
+	match.Append(ofp13.NewOxmEthType(0x0806))
+	match.Append(arpMatch)
+
+	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Append(ofp13.NewOfpActionOutput(ofport, 0))
+
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 500, 0, match,
+		[]ofp13.OfpInstruction{instruction})
+	flows = append(flows, flow)
+
+	return flows, nil
 
 }
 
-func (c *controller) arpResponder(gatewayIP, podCIDR, clusterCIDR string) ([]*ofp13.OfpFlowMod, error) {
+func (c *controller) defaultARPFlows() ([]*ofp13.OfpFlowMod, error) {
 	flows := []*ofp13.OfpFlowMod{}
 
-	arpMatch, err := ofp13.NewOxmArpTpa(gatewayIP)
-	if err != nil {
-		return nil, err
-	}
-
+	// all arp go to table local arp (5)
 	match := ofp13.NewOfpMatch()
 	match.Append(ofp13.NewOxmEthType(0x0806))
-	match.Append(arpMatch)
 
-	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
-
-	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 150, 0, match,
+	instruction := ofp13.NewOfpInstructionGotoTable(tableLocalARP)
+	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 200, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
-	arpMatch, err = newOxmArpDst(podCIDR)
+	arpMatch, err := newOxmArpDst(c.podCIDR)
 	if err != nil {
 		return nil, err
 	}
@@ -305,13 +344,12 @@ func (c *controller) arpResponder(gatewayIP, podCIDR, clusterCIDR string) ([]*of
 	match.Append(ofp13.NewOxmEthType(0x0806))
 	match.Append(arpMatch)
 
-	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 100, 0, match,
+	instruction = ofp13.NewOfpInstructionGotoTable(tableL2Rewrites)
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 100, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
-	arpMatch, err = newOxmArpDst(clusterCIDR)
+	arpMatch, err = newOxmArpDst(c.clusterCIDR)
 	if err != nil {
 		return nil, err
 	}
@@ -320,27 +358,26 @@ func (c *controller) arpResponder(gatewayIP, podCIDR, clusterCIDR string) ([]*of
 	match.Append(ofp13.NewOxmEthType(0x0806))
 	match.Append(arpMatch)
 
-	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_CONTROLLER, 65535))
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 50, 0, match,
+	instruction = ofp13.NewOfpInstructionGotoTable(tableOverlay)
+	flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 50, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 
-	arpMatch, err = newOxmArpDst(clusterCIDR)
-	if err != nil {
-		return nil, err
-	}
+	// arpMatch, err = newOxmArpDst(clusterCIDR)
+	//if err != nil {
+	//	return nil, err
+	//	}
 
-	match = ofp13.NewOfpMatch()
-	match.Append(ofp13.NewOxmEthType(0x0806))
-	match.Append(ofp13.NewOxmArpOp(2))
-	match.Append(arpMatch)
+	//match = ofp13.NewOfpMatch()
+	//match.Append(ofp13.NewOxmEthType(0x0806))
+	//match.Append(ofp13.NewOxmArpOp(2))
+	//match.Append(arpMatch)
 
-	instruction = ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 500, 0, match,
-		[]ofp13.OfpInstruction{instruction})
-	flows = append(flows, flow)
+	//applyInstruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	//applyInstruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
+	//flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 500, 0, match,
+	//	[]ofp13.OfpInstruction{applyInstruction})
+	//flows = append(flows, flow)
 
 	return flows, nil
 }

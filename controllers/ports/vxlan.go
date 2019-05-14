@@ -31,6 +31,10 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	vxlanPortName = "vxlan0"
+)
+
 // vxlanPorts watches for VSwitchConfig events and
 // creates a vxlan port on the local OVS bridge
 type vxlanPorts struct {
@@ -83,13 +87,10 @@ func (v *vxlanPorts) OnDeleteVSwitch(obj interface{}) {
 }
 
 func (v *vxlanPorts) addVxLANPort(vswitchConfig *kovsv1alpha1.VSwitchConfig) error {
-	vxlanPortName := "vxlan" + strconv.Itoa(int(vswitchConfig.Spec.OverlayTunnelID))
-
 	command := []string{
 		"--may-exist", "add-port", v.bridgeName, vxlanPortName,
 		"--", "set", "Interface", vxlanPortName, "type=vxlan",
-		fmt.Sprintf("option:local_ip=%s", v.localOverlayIP),
-		fmt.Sprintf("option:remote_ip=%s", vswitchConfig.Spec.OverlayIP),
+		fmt.Sprintf("option:remote_ip=flow"),
 		"option:key=flow",
 	}
 
