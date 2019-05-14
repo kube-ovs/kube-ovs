@@ -55,11 +55,6 @@ const (
 	bridgeName              = "kube-ovs0"
 	hostLocalPort           = "host-local"
 	defaultControllerTarget = "tcp:127.0.0.1:6653"
-
-	// TODO: set this via a CLI flag
-	defaultClusterCIDR = "172.20.0.0/16"
-	// TODO: set this via a CLI flag
-	defaultServiceCIDR = "100.64.0.0/13"
 )
 
 func main() {
@@ -103,12 +98,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	podCIDR := curNode.Spec.PodCIDR
-	err = installCNIConf(podCIDR)
+	err = installCNIConf(curNode.Spec.PodCIDR)
 	if err != nil {
 		klog.Errorf("failed to install CNI: %v", err)
 		os.Exit(1)
 	}
+
+	vswitchConfig, err := waitForVSwitchConfig(kovsClientset, curNode.Name)
+	if err != nil {
+		klog.Errorf("error getting vswitch config for node: %v", err)
+		os.Exit(1)
+	}
+
+	podCIDR := vswitchConfig.Spec.PodCIDR
+	clusterCIDR := vswitchConfig.Spec.ClusterCIDR
+	serviceCIDR := vswitchConfig.Spec.ServiceCIDR
 
 	err = setupBridgeIfNotExists()
 	if err != nil {
@@ -128,7 +132,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	addr, err := netlinkAddrForCIDR(defaultClusterCIDR, podCIDR)
+	addr, err := netlinkAddrForCIDR(clusterCIDR, podCIDR)
 	if err != nil {
 		klog.Errorf("failed to get netlink addr for CIDR %q, err: %v", podCIDR, err)
 		os.Exit(1)
@@ -155,14 +159,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := setupBridgeForwarding(podCIDR); err != nil {
+	if err := setupBridgeForwarding(podCIDR, clusterCIDR, serviceCIDR); err != nil {
 		klog.Errorf("failed to setup bridge forwarding: %v", err)
-		os.Exit(1)
-	}
-
-	vswitchConfig, err := waitForVSwitchConfig(kovsClientset, curNode.Name)
-	if err != nil {
-		klog.Errorf("error getting vswitch config for node: %v", err)
 		os.Exit(1)
 	}
 
@@ -196,7 +194,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := openflow.NewController(connectionManager, nodeInformer, podInformer, hostLocalInterface.HardwareAddr.String(), curNode.Name, podCIDR, defaultClusterCIDR)
+	c := openflow.NewController(connectionManager, nodeInformer, podInformer, hostLocalInterface.HardwareAddr.String(), curNode.Name, podCIDR, clusterCIDR)
 
 	vswitchInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.OnAddVSwitch,
@@ -374,7 +372,7 @@ func setControllerTarget() error {
 	return nil
 }
 
-func setupBridgeForwarding(podCIDR string) error {
+func setupBridgeForwarding(podCIDR, clusterCIDR, serviceCIDR string) error {
 	ipt, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
 	if err != nil {
 		return err
@@ -398,13 +396,13 @@ func setupBridgeForwarding(podCIDR string) error {
 		return err
 	}
 
-	rules = []string{"!", "-d", defaultClusterCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from cluster CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
+	rules = []string{"!", "-d", clusterCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from cluster CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
 	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"!", "-d", defaultServiceCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from service CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
+	rules = []string{"!", "-d", serviceCIDR, "-m", "comment", "--comment", "kube-ovs: SNAT for outbound traffic from service CIDR", "-m", "addrtype", "!", "--dst-type", "LOCAL", "-j", "MASQUERADE"}
 	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err

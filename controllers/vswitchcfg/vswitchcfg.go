@@ -42,6 +42,8 @@ import (
 // TODO: implement controller using queues
 type vswitchConfig struct {
 	overlayType string
+	clusterCIDR string
+	serviceCIDR string
 
 	kovsClient kovs.Interface
 	kubeClient kubernetes.Interface
@@ -54,10 +56,13 @@ func NewVSwitchConfigController(
 	vswitchInformer kovsinformers.VSwitchConfigInformer,
 	nodeInformer v1informer.NodeInformer,
 	kubeClient kubernetes.Interface,
-	kovsClient kovs.Interface, overlayType string) *vswitchConfig {
+	kovsClient kovs.Interface,
+	overlayType, clusterCIDR, serviceCIDR string) *vswitchConfig {
 
 	v := &vswitchConfig{
 		overlayType:   overlayType,
+		clusterCIDR:   clusterCIDR,
+		serviceCIDR:   serviceCIDR,
 		kovsClient:    kovsClient,
 		kubeClient:    kubeClient,
 		vswitchLister: vswitchInformer.Lister(),
@@ -139,11 +144,28 @@ func (v *vswitchConfig) needsUpdate(node *corev1.Node) (bool, error) {
 		return false, fmt.Errorf("failed to get overlay IP for node: %v", err)
 	}
 
+	nodePodCIDR, err := nodePodCIDR(node)
+	if err != nil {
+		return false, fmt.Errorf("failed to get pod CIDR for node: %v", err)
+	}
+
 	if vswitchCfg.Spec.OverlayIP != overlayIP {
 		return true, nil
 	}
 
 	if vswitchCfg.Spec.OverlayType != v.overlayType {
+		return true, nil
+	}
+
+	if vswitchCfg.Spec.PodCIDR != nodePodCIDR {
+		return true, nil
+	}
+
+	if vswitchCfg.Spec.ClusterCIDR != v.clusterCIDR {
+		return true, nil
+	}
+
+	if vswitchCfg.Spec.ServiceCIDR != v.serviceCIDR {
 		return true, nil
 	}
 
@@ -156,9 +178,15 @@ func (v *vswitchConfig) syncVSwitchConfig(node *corev1.Node) error {
 		return fmt.Errorf("error getting overlay IP for node %q, err: %v", node.Name, err)
 	}
 
+	nodePodCIDR, err := nodePodCIDR(node)
+	if err != nil {
+		return fmt.Errorf("failed to get pod CIDR for node: %v", err)
+	}
+
 	vswitchCfg, err := v.vswitchLister.Get(node.Name)
 	if apierr.IsNotFound(err) {
-		vswitchCfg := nodeToVSwitchConfig(node, v.overlayType, overlayIP)
+		vswitchCfg := nodeToVSwitchConfig(node, v.overlayType, overlayIP,
+			nodePodCIDR, v.clusterCIDR, v.serviceCIDR)
 		_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Create(vswitchCfg)
 		return err
 	}
@@ -170,12 +198,16 @@ func (v *vswitchConfig) syncVSwitchConfig(node *corev1.Node) error {
 	newVSwitchCfg := vswitchCfg.DeepCopy()
 	newVSwitchCfg.Spec.OverlayIP = overlayIP
 	newVSwitchCfg.Spec.OverlayType = v.overlayType
+	newVSwitchCfg.Spec.PodCIDR = nodePodCIDR
+	newVSwitchCfg.Spec.ClusterCIDR = v.clusterCIDR
+	newVSwitchCfg.Spec.ServiceCIDR = v.serviceCIDR
 
 	_, err = v.kovsClient.KubeovsV1alpha1().VSwitchConfigs().Update(newVSwitchCfg)
 	return err
 }
 
-func nodeToVSwitchConfig(node *corev1.Node, overlayType, overlayIP string) *kovsv1alpha1.VSwitchConfig {
+func nodeToVSwitchConfig(node *corev1.Node, overlayType, overlayIP,
+	podCIDR, clusterCIDR, serviceCIDR string) *kovsv1alpha1.VSwitchConfig {
 	return &kovsv1alpha1.VSwitchConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.Name,
@@ -183,6 +215,9 @@ func nodeToVSwitchConfig(node *corev1.Node, overlayType, overlayIP string) *kovs
 		Spec: kovsv1alpha1.VSwitchConfigSpec{
 			OverlayIP:   overlayIP,
 			OverlayType: overlayType,
+			PodCIDR:     podCIDR,
+			ClusterCIDR: clusterCIDR,
+			ServiceCIDR: serviceCIDR,
 		},
 	}
 }
@@ -210,4 +245,13 @@ func nodeOverlayIP(node *corev1.Node) (string, error) {
 	}
 
 	return "", errors.New("no valid node IP found for tunnel overlay")
+}
+
+func nodePodCIDR(node *corev1.Node) (string, error) {
+	podCIDR := node.Spec.PodCIDR
+	if podCIDR == "" {
+		return "", fmt.Errorf("node %q did not have pod CIDR set", node.Name)
+	}
+
+	return podCIDR, nil
 }

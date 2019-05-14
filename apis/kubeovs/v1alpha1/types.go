@@ -37,7 +37,10 @@ type VSwitchConfig struct {
 
 // VSwitchSpec is the spec for the Open vSwitch configuration
 type VSwitchConfigSpec struct {
-	PodCIDR         string `json:"podCidr"`
+	PodCIDR     string `json:"podCidr"`
+	ClusterCIDR string `json:"clusterCidr"`
+	ServiceCIDR string `json:"serviceCidr"`
+
 	OverlayIP       string `json:"overlayIP"`
 	OverlayType     string `json:"overlayType"`
 	OverlayTunnelID int32  `json:"overlayTunnelID"`

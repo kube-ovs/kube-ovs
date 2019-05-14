@@ -36,6 +36,12 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	defaultClusterCIDR = "100.96.0.0/11"
+	defaultServiceCIDR = "100.64.0.0/13"
+	defaultOverlayType = "vxlan"
+)
+
 func main() {
 	klog.InitFlags(flag.CommandLine)
 	klog.Info("starting kube-ovs-controller")
@@ -79,7 +85,9 @@ func main() {
 	tunnelController := tunnel.NewTunnelIDAllocator(kovsClientset, vswitchInformer)
 	vswitchInformer.Informer().AddEventHandler(tunnelController)
 
-	vswitchController := vswitchcfg.NewVSwitchConfigController(vswitchInformer, nodeInformer, clientset, kovsClientset, "vxlan")
+	vswitchController := vswitchcfg.NewVSwitchConfigController(vswitchInformer,
+		nodeInformer, clientset, kovsClientset,
+		defaultOverlayType, defaultClusterCIDR, defaultServiceCIDR)
 	nodeInformer.Informer().AddEventHandler(vswitchController)
 
 	kovsInformerFactory.Start(stopCh)
