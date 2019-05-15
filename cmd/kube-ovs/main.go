@@ -378,19 +378,19 @@ func setupBridgeForwarding(podCIDR, clusterCIDR, serviceCIDR string) error {
 		return err
 	}
 
-	rules := []string{"-o", bridgeName, "-j", "ACCEPT"}
+	rules := []string{"-o", hostLocalPort, "-j", "ACCEPT"}
 	err = ipt.AppendUnique("filter", "FORWARD", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"-i", bridgeName, "-j", "ACCEPT"}
+	rules = []string{"-i", hostLocalPort, "-j", "ACCEPT"}
 	err = ipt.AppendUnique("filter", "FORWARD", rules...)
 	if err != nil {
 		return err
 	}
 
-	rules = []string{"-s", podCIDR, "!", "-o", bridgeName, "-j", "MASQUERADE"}
+	rules = []string{"-s", podCIDR, "!", "-o", hostLocalPort, "-j", "MASQUERADE"}
 	err = ipt.AppendUnique("nat", "POSTROUTING", rules...)
 	if err != nil {
 		return err
@@ -418,6 +418,10 @@ func setupModulesAndSysctls() error {
 
 	if err := ioutil.WriteFile("/proc/sys/net/bridge/bridge-nf-call-iptables", []byte(strconv.Itoa(1)), 0640); err != nil {
 		return fmt.Errorf("failed to set /proc/sys/net/bridge/bridge-nf-call-iptables, err: %v", err)
+	}
+
+	if err := ioutil.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte(strconv.Itoa(1)), 0640); err != nil {
+		return fmt.Errorf("failed to set /proc/sys/net/ipv4/ip_forward, err: %v", err)
 	}
 
 	return nil

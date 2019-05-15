@@ -32,22 +32,6 @@ import (
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 )
 
-const (
-	hostLocalPort = "host-local"
-)
-
-type podNetSpec struct {
-	macAddr string
-	ip      string
-}
-
-// podNetSpecMap provides a cache of pods to their network spec
-// such as IPs and Mac addresses. A local cache is required since
-// we won't be able to fetch IPs from apiserver once the pod is deleted
-// TODO: use switch groups to group all pods for a flow together
-// so they can be deleted together by reference
-type podNetSpecMap map[string]podNetSpec
-
 func (c *controller) OnAddPod(obj interface{}) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
@@ -73,28 +57,13 @@ func (c *controller) OnUpdatePod(oldObj, newObj interface{}) {
 }
 
 func (c *controller) OnDeletePod(obj interface{}) {
-	pod, ok := obj.(*corev1.Pod)
+	_, ok := obj.(*corev1.Pod)
 	if !ok {
 		return
 	}
 
-	podNetSpec, err := c.netSpecFromCache(pod)
-	if err != nil {
-		klog.Errorf("error getting pod net spec: %v", err)
-		return
-	}
-
-	flows, err := c.delDataLinkFlowsForLocalIP(pod, podNetSpec)
-	if err != nil {
-		klog.Errorf("error deleting flow: %v", err)
-		return
-	}
-
-	for _, flow := range flows {
-		c.connManager.Send(flow)
-	}
-
-	c.delNetSpecFormCache(pod)
+	// TODO: handle delete case, right now this is not trivial
+	// because we need to know the pod IP to find the correct match set
 }
 
 func (c *controller) isLocalIP(ip string) (bool, error) {
@@ -121,12 +90,7 @@ func (c *controller) syncPod(pod *corev1.Pod) error {
 		return nil
 	}
 
-	podNetSpec, err := c.netSpecFromCache(pod)
-	if err != nil {
-		return fmt.Errorf("error getting pod net spec: %v", err)
-	}
-
-	flows, err := c.addDataLinkFlowsForLocalIP(pod, podNetSpec)
+	flows, err := c.addDataLinkFlowsForLocalIP(pod)
 	if err != nil {
 		return fmt.Errorf("error getting data link flows for IP %q, err: %v", podIP, err)
 	}
@@ -138,48 +102,10 @@ func (c *controller) syncPod(pod *corev1.Pod) error {
 	return nil
 }
 
-func (c *controller) netSpecFromCache(pod *corev1.Pod) (podNetSpec, error) {
-	c.netSpecLock.Lock()
-	defer c.netSpecLock.Unlock()
-
-	cacheKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	netSpec, exists := c.podNetSpecMap[cacheKey]
-	if exists {
-		return netSpec, nil
-	}
-
-	netSpec, err := c.netSpecForPod(pod)
-	if err != nil {
-		return podNetSpec{}, fmt.Errorf("error getting network spec for pod %v", err)
-	}
-
-	c.podNetSpecMap[cacheKey] = netSpec
-	return netSpec, nil
-}
-
-func (c *controller) netSpecForPod(pod *corev1.Pod) (podNetSpec, error) {
-	podIP := pod.Status.PodIP
-	if podIP == "" {
-		return podNetSpec{}, fmt.Errorf("pod %q has no ip", pod.Name)
-	}
-
-	return podNetSpec{
-		ip: podIP,
-	}, nil
-}
-
-func (c *controller) delNetSpecFormCache(pod *corev1.Pod) {
-	c.netSpecLock.Lock()
-	defer c.netSpecLock.Unlock()
-
-	cacheKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	delete(c.podNetSpecMap, cacheKey)
-}
-
-func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetSpec) ([]*ofp13.OfpFlowMod, error) {
+func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod) ([]*ofp13.OfpFlowMod, error) {
 	flows := []*ofp13.OfpFlowMod{}
 
-	podIP := netSpec.ip
+	podIP := pod.Status.PodIP
 
 	portName, err := findPort(pod.Namespace, pod.Name)
 	if err != nil {
@@ -238,40 +164,6 @@ func (c *controller) addDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetS
 	return flows, nil
 }
 
-func (c *controller) delDataLinkFlowsForLocalIP(pod *corev1.Pod, netSpec podNetSpec) ([]*ofp13.OfpFlowMod, error) {
-	flows := []*ofp13.OfpFlowMod{}
-
-	podIP := netSpec.ip
-
-	ipv4Match, err := ofp13.NewOxmIpv4Dst(podIP)
-	if err != nil {
-		return nil, fmt.Errorf("error getting ArpTpa match: %v", err)
-	}
-
-	// add flow for this endpoint
-	match := ofp13.NewOfpMatch()
-	match.Append(ofp13.NewOxmEthType(0x0800))
-	match.Append(ipv4Match)
-
-	flow := ofp13.NewOfpFlowModDelete(0, 0, tableL2Rewrites, 100, 0, 0, 0, match)
-	flows = append(flows, flow)
-
-	arpMatch, err := ofp13.NewOxmArpTpa(podIP)
-	if err != nil {
-		return nil, fmt.Errorf("error getting ArpTpa match: %v", err)
-	}
-
-	// add flow for this endpoint
-	match = ofp13.NewOfpMatch()
-	match.Append(ofp13.NewOxmEthType(0x0806))
-	match.Append(arpMatch)
-
-	flow = ofp13.NewOfpFlowModDelete(0, 0, tableL2Rewrites, 100, 0, 0, 0, match)
-	flows = append(flows, flow)
-
-	return flows, nil
-}
-
 func (c *controller) addDataLinkFlowForGateway() ([]*ofp13.OfpFlowMod, error) {
 	flows := []*ofp13.OfpFlowMod{}
 
@@ -281,6 +173,7 @@ func (c *controller) addDataLinkFlowForGateway() ([]*ofp13.OfpFlowMod, error) {
 	}
 
 	ipv4Match, err := ofp13.NewOxmIpv4Dst(c.gatewayIP)
+
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPv4Dst match: %v", err)
 	}
@@ -320,13 +213,11 @@ func (c *controller) addDataLinkFlowForGateway() ([]*ofp13.OfpFlowMod, error) {
 	flows = append(flows, flow)
 
 	return flows, nil
-
 }
 
 func (c *controller) defaultARPFlows() ([]*ofp13.OfpFlowMod, error) {
 	flows := []*ofp13.OfpFlowMod{}
 
-	// all arp go to table local arp (5)
 	match := ofp13.NewOfpMatch()
 	match.Append(ofp13.NewOxmEthType(0x0806))
 
@@ -362,22 +253,6 @@ func (c *controller) defaultARPFlows() ([]*ofp13.OfpFlowMod, error) {
 	flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 50, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
-
-	// arpMatch, err = newOxmArpDst(clusterCIDR)
-	//if err != nil {
-	//	return nil, err
-	//	}
-
-	//match = ofp13.NewOfpMatch()
-	//match.Append(ofp13.NewOxmEthType(0x0806))
-	//match.Append(ofp13.NewOxmArpOp(2))
-	//match.Append(arpMatch)
-
-	//applyInstruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	//applyInstruction.Append(ofp13.NewOfpActionOutput(ofp13.OFPP_NORMAL, 0))
-	//flow = ofp13.NewOfpFlowModAdd(0, 0, tableLocalARP, 500, 0, match,
-	//	[]ofp13.OfpInstruction{applyInstruction})
-	//flows = append(flows, flow)
 
 	return flows, nil
 }

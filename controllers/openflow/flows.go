@@ -33,27 +33,33 @@ import (
 
 const (
 	tableClassification         = 0
-	tableLocalARP               = 5
-	tableOverlay                = 10
-	tableL3Rewrites             = 20
-	tableL3Forwarding           = 30
-	tableL2Rewrites             = 40
-	tableL2Forwarding           = 50
-	tableNetworkPoliciesIngress = 60
-	tableNetworkPoliciesEgress  = 70
-	tableProxy                  = 80
-	tableNAT                    = 90
-	tableAudit                  = 100
+	tableLocalARP               = 10
+	tableOverlay                = 20
+	tableL3Rewrites             = 30
+	tableL3Forwarding           = 40
+	tableL2Rewrites             = 50
+	tableL2Forwarding           = 60
+	tableNetworkPoliciesIngress = 70
+	tableNetworkPoliciesEgress  = 80
+	tableProxy                  = 90
+	tableNAT                    = 100
+	tableAudit                  = 110
+
+	vxlanPortName = "vxlan0"
 )
 
 func (c *controller) AddDefaultFlows(bridgeName string) error {
-	baseFlows := []*ofp13.OfpFlowMod{
-		baseFlows(tableClassification),
+	ofport, err := ofPortFromName(hostLocalPort)
+	if err != nil {
+		return fmt.Errorf("getting host local port number: %v", err)
 	}
 
-	for _, flow := range baseFlows {
-		c.connManager.Send(flow)
-	}
+	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
+	instruction.Actions = append(instruction.Actions, ofp13.NewOfpActionOutput(ofport, 0))
+
+	defaultLocalFlow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 0, 0, ofp13.NewOfpMatch(),
+		[]ofp13.OfpInstruction{instruction})
+	c.connManager.Send(defaultLocalFlow)
 
 	gatewayFlows, err := c.addDataLinkFlowForGateway()
 	if err != nil {
@@ -76,16 +82,6 @@ func (c *controller) AddDefaultFlows(bridgeName string) error {
 	return nil
 }
 
-// baseFlows returns the FlowMod action to create the base set of flows
-// added by default to each kube-ovs table
-func baseFlows(tableID uint8) *ofp13.OfpFlowMod {
-	instruction := ofp13.NewOfpInstructionActions(ofp13.OFPIT_APPLY_ACTIONS)
-	instruction.Actions = append(instruction.Actions, ofp13.NewOfpActionOutput(ofp13.OFPP_LOCAL, 0))
-
-	return ofp13.NewOfpFlowModAdd(0, 0, tableID, 0, 0, ofp13.NewOfpMatch(),
-		[]ofp13.OfpInstruction{instruction})
-}
-
 func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.OfpFlowMod, error) {
 	flows := []*ofp13.OfpFlowMod{}
 
@@ -94,19 +90,8 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 		isCurrentNode = true
 	}
 
-	// VSwitchConfig resource always matches the name of the node it represents
-	node, err := c.nodeLister.Get(vswitch.Name)
-	if err != nil {
-		return nil, err
-	}
+	podCIDR := vswitch.Spec.PodCIDR
 
-	if node.Spec.PodCIDR == "" {
-		return nil, fmt.Errorf("node %q has no pod cidr", node.Name)
-	}
-
-	podCIDR := node.Spec.PodCIDR
-
-	vxlanPortName := "vxlan0"
 	vxlanOFPort, err := ofPortFromName(vxlanPortName)
 	if err != nil {
 		return nil, fmt.Errorf("error getting ofport for %q: %v", vxlanPortName, err)
@@ -130,22 +115,6 @@ func (c *controller) flowsForVSwitch(vswitch *v1alpha1.VSwitchConfig) ([]*ofp13.
 	match.Append(ipv4Match)
 	instruction = ofp13.NewOfpInstructionGotoTable(tableL2Rewrites)
 	flow := ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 300, 0, match,
-		[]ofp13.OfpInstruction{instruction})
-	flows = append(flows, flow)
-
-	// traffic in the cluster CIDR with a tunnel ID should go to tableL3Forwarding
-	// traffic to local pod CIDR should never reach here since priority for the
-	// flow directly above is higher
-	match = ofp13.NewOfpMatch()
-	ipv4Match, err = newOxmIpv4SubnetDst(c.clusterCIDR)
-	if err != nil {
-		return nil, err
-	}
-	match.Append(ofp13.NewOxmEthType(0x0800))
-	match.Append(ipv4Match)
-	match.Append(ofp13.NewOxmTunnelId(uint64(vswitch.Spec.OverlayTunnelID)))
-	instruction = ofp13.NewOfpInstructionGotoTable(tableL3Forwarding)
-	flow = ofp13.NewOfpFlowModAdd(0, 0, tableClassification, 250, 0, match,
 		[]ofp13.OfpInstruction{instruction})
 	flows = append(flows, flow)
 

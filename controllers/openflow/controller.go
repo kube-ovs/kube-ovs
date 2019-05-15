@@ -20,9 +20,7 @@ under the License.
 package openflow
 
 import (
-	"errors"
 	"net"
-	"sync"
 
 	"github.com/Kmotiko/gofc/ofprotocol/ofp13"
 	"github.com/containernetworking/plugins/pkg/ip"
@@ -30,6 +28,10 @@ import (
 	v1informer "k8s.io/client-go/informers/core/v1"
 	v1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
+)
+
+const (
+	hostLocalPort = "host-local"
 )
 
 type connectionManager interface {
@@ -49,9 +51,6 @@ type controller struct {
 
 	nodeLister v1lister.NodeLister
 	podLister  v1lister.PodLister
-
-	podNetSpecMap podNetSpecMap
-	netSpecLock   sync.Mutex
 }
 
 func NewController(connManager connectionManager,
@@ -63,15 +62,14 @@ func NewController(connManager connectionManager,
 	gatewayIP := ip.NextIP(podIPNet.IP.Mask(podIPNet.Mask)).String()
 
 	return &controller{
-		connManager:   connManager,
-		nodeName:      nodeName,
-		gatewayIP:     gatewayIP,
-		gatewayMAC:    gatewayMAC,
-		podCIDR:       podCIDR,
-		clusterCIDR:   clusterCIDR,
-		nodeLister:    nodeInformer.Lister(),
-		podLister:     podInformer.Lister(),
-		podNetSpecMap: make(podNetSpecMap),
+		connManager: connManager,
+		nodeName:    nodeName,
+		gatewayIP:   gatewayIP,
+		gatewayMAC:  gatewayMAC,
+		podCIDR:     podCIDR,
+		clusterCIDR: clusterCIDR,
+		nodeLister:  nodeInformer.Lister(),
+		podLister:   podInformer.Lister(),
 	}
 }
 
@@ -114,19 +112,4 @@ func (c *controller) Run() {
 		default:
 		}
 	}
-}
-
-func inPortForPacket(packetIn *ofp13.OfpPacketIn) (uint32, error) {
-	fields := packetIn.Match.OxmFields
-	for _, field := range fields {
-		if field.OxmField() == ofp13.OFPXMT_OFB_IN_PORT {
-			inPort, ok := field.(*ofp13.OxmInPort)
-			if !ok {
-				return 0, errors.New("could not fetch OxmInPort")
-			}
-			return inPort.Value, nil
-		}
-	}
-
-	return 0, errors.New("could not find in port match for packet")
 }
